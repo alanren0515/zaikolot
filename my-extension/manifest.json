@@ -8,13 +8,19 @@
     "tabs",
     "scripting"
   ],
+  "host_permissions": [
+    "https://*.zaiko.io/*"
+  ],
   "action": {
     "default_popup": "popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://akb48.zaiko.io/*"],
+      "matches": ["https://akb48.zaiko.io/*", "https://*.zaiko.io/*"],
       "js": ["content.js"]
     }
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }
