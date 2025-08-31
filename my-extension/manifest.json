@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "网页自动化扩展",
+  "version": "1.0",
+  "description": "在指定 URL 上自动勾选 checkbox 并点击按钮",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://akb48.zaiko.io/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

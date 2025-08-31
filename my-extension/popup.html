@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>网页自动化</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 5px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #status {
+      margin-top: 10px;
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <input type="text" id="urlInput" placeholder="请输入 URL（如 https://akb48.zaiko.io/...）">
+  <button id="startButton">开始自动化</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
