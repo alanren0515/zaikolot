@@ -1,41 +1,193 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <title>网页自动化</title>
+  <meta charset="UTF-8">
+  <title>Zaiko Lottery Helper</title>
   <style>
-    body {
-      width: 300px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 5px;
-      margin-bottom: 10px;
+    * {
       box-sizing: border-box;
     }
-    button {
-      width: 100%;
-      padding: 10px;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      cursor: pointer;
+
+    body {
+      width: 288px;
+      margin: 0;
+      padding: 0;
+      color: #172033;
+      background: #f5f7fb;
+      font-family: Arial, sans-serif;
+    }
+
+    .panel {
+      padding: 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #f7f9fd 100%);
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 8px;
+      color: #ffffff;
+      background: #1769e0;
       font-size: 16px;
+      font-weight: 700;
     }
-    button:hover {
-      background-color: #45a049;
+
+    .title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
     }
-    #status {
-      margin-top: 10px;
-      color: red;
+
+    .subtitle {
+      margin-top: 3px;
+      color: #677083;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .control {
+      padding: 14px;
+      border: 1px solid #e1e6f0;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .label {
+      font-weight: 700;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .hint {
+      margin-top: 4px;
+      color: #697386;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      color: #6b7280;
+      background: #eef1f6;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .status::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      content: "";
+    }
+
+    .status.active {
+      color: #0f766e;
+      background: #dff7ef;
+    }
+
+    .status.inactive {
+      color: #6b7280;
+      background: #eef1f6;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      flex: 0 0 auto;
+      width: 48px;
+      height: 28px;
+    }
+
+    .switch input {
+      width: 0;
+      height: 0;
+      opacity: 0;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background-color: #cfd6e3;
+      cursor: pointer;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+
+    .slider::before {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: white;
+      box-shadow: 0 2px 5px rgba(23, 32, 51, 0.25);
+      content: "";
+      transition: transform 0.2s;
+    }
+
+    input:checked + .slider {
+      background-color: #1769e0;
+      box-shadow: 0 0 0 3px rgba(23, 105, 224, 0.14);
+    }
+
+    input:checked + .slider::before {
+      transform: translateX(20px);
+    }
+
+    input:focus-visible + .slider {
+      outline: 2px solid #1769e0;
+      outline-offset: 2px;
     }
   </style>
 </head>
 <body>
-  <input type="text" id="urlInput" placeholder="Zaiko URL（Like https://akb48.zaiko.io/...）">
-  <button id="startButton">Start</button>
-  <div id="status"></div>
+  <div class="panel">
+    <div class="top">
+      <div class="mark">Z</div>
+      <div>
+        <h1 class="title">Zaiko Helper</h1>
+        <div class="subtitle">抽选页面自动操作</div>
+      </div>
+    </div>
+
+    <div class="control">
+      <div class="row">
+        <div>
+          <div class="label">自动执行</div>
+          <div class="hint">开启后，匹配页面加载时运行</div>
+        </div>
+        <label class="switch" aria-label="切换自动执行">
+          <input id="enabledToggle" type="checkbox">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="status" class="status inactive">读取中</div>
+    </div>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>

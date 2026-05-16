@@ -1,29 +1,21 @@
-document.getElementById('startButton').addEventListener('click', () => {
-  const urlInput = document.getElementById('urlInput').value;
-  const statusDiv = document.getElementById('status');
+const enabledToggle = document.getElementById('enabledToggle');
+const statusText = document.getElementById('status');
 
-  // 验证 URL
-  if (!urlInput.startsWith('https://akb48.zaiko.io/') && !urlInput.startsWith('https://zaiko.io/')) {
-    statusDiv.textContent = '请输入有效的 akb48.zaiko.io URL';
-    return;
-  }
+function updateStatus(enabled) {
+  statusText.textContent = enabled ? '已开启' : '已关闭';
+  statusText.classList.toggle('active', enabled);
+  statusText.classList.toggle('inactive', !enabled);
+}
 
-  // 打开新标签页
-  chrome.tabs.create({ url: urlInput }, (tab) => {
-    chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-      if (tabId === tab.id && changeInfo.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content.js']
-        }, (results) => {
-          if (chrome.runtime.lastError) {
-            statusDiv.textContent = `脚本注入失败: ${chrome.runtime.lastError.message}`;
-          } else {
-            statusDiv.textContent = '自动化脚本已注入！';
-          }
-        });
-      }
-    });
+chrome.storage.local.get({ enabled: false }, ({ enabled }) => {
+  enabledToggle.checked = enabled;
+  updateStatus(enabled);
+});
+
+enabledToggle.addEventListener('change', () => {
+  const enabled = enabledToggle.checked;
+
+  chrome.storage.local.set({ enabled }, () => {
+    updateStatus(enabled);
   });
 });

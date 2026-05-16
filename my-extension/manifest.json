@@ -1,26 +1,21 @@
 {
   "manifest_version": 3,
-  "name": "网页自动化扩展",
+  "name": "Zaiko Lottery Helper",
   "version": "1.0",
-  "description": "在指定 URL 上自动勾选 checkbox 并点击按钮",
+  "description": "在 Zaiko 抽选页面自动勾选 checkbox 并完成确认流程",
   "permissions": [
-    "activeTab",
-    "tabs",
-    "scripting"
-  ],
-  "host_permissions": [
-    "https://*.zaiko.io/*"
+    "storage"
   ],
   "action": {
     "default_popup": "popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://akb48.zaiko.io/*", "https://*.zaiko.io/*"],
-      "js": ["content.js"]
+      "matches": [
+        "https://akb48.zaiko.io/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
     }
-  ],
-  "background": {
-    "service_worker": "background.js"
-  }
+  ]
 }
