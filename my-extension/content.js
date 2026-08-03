@@ -10,6 +10,7 @@
   const SUBMIT_SELECTOR = 'button.btn.btn-block.btn-xl.btn-brand';
   const PAGE_READY_TIMEOUT = 60000;
   const ELEMENT_TIMEOUT = 30000;
+  const CHECKBOX_CONFIRM_TIMEOUT = 5000;
   const MAX_BACKGROUND_WAIT = 300000;
   const POLL_INTERVAL = 500;
 
@@ -160,6 +161,37 @@
     return Array.from(document.querySelectorAll(selector)).find(isVisible);
   }
 
+  function findCheckboxClickTarget(checkbox) {
+    const linkedLabel = Array.from(document.querySelectorAll('label')).find((label) => {
+      return label.htmlFor === checkbox.id && isVisible(label);
+    });
+
+    if (linkedLabel) {
+      return linkedLabel;
+    }
+
+    const parentLabel = checkbox.closest('label');
+    if (parentLabel && isVisible(parentLabel)) {
+      return parentLabel;
+    }
+
+    const roleCheckbox = checkbox.closest('[role="checkbox"]');
+    if (roleCheckbox && isVisible(roleCheckbox)) {
+      return roleCheckbox;
+    }
+
+    return checkbox;
+  }
+
+  function isCheckboxSelected(checkbox) {
+    if (checkbox.checked || checkbox.getAttribute('aria-checked') === 'true') {
+      return true;
+    }
+
+    const stateContainer = checkbox.closest('[role="checkbox"]');
+    return Boolean(stateContainer && stateContainer.getAttribute('aria-checked') === 'true');
+  }
+
   function isVisible(element) {
     const rect = element.getBoundingClientRect();
     const style = window.getComputedStyle(element);
@@ -197,15 +229,43 @@
     const checkbox = await waitForElementById(id, signal);
     ensureEnabled(signal);
 
-    if (!checkbox.checked) {
-      await sleep(500, signal);
-      ensureEnabled(signal);
-      checkbox.click();
-      log(`已勾选: ${id}`);
+    if (isCheckboxSelected(checkbox)) {
+      log(`已经勾选: ${id}`);
       return;
     }
 
-    log(`已经勾选: ${id}`);
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      await sleep(500, signal);
+      ensureEnabled(signal);
+
+      const currentCheckbox = document.getElementById(id) || checkbox;
+      const clickTarget = findCheckboxClickTarget(currentCheckbox);
+      clickTarget.click();
+
+      try {
+        await waitForCondition(
+          () => {
+            const updatedCheckbox = document.getElementById(id);
+            return updatedCheckbox && isCheckboxSelected(updatedCheckbox) ? updatedCheckbox : null;
+          },
+          `checkbox selected: ${id}`,
+          CHECKBOX_CONFIRM_TIMEOUT,
+          signal
+        );
+        log(`已确认勾选: ${id}`);
+        return;
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          throw error;
+        }
+
+        if (attempt === 2) {
+          throw new Error(`无法确认 checkbox 已勾选: ${id}`);
+        }
+
+        log(`第一次点击未确认成功，重试: ${id}`);
+      }
+    }
   }
 
   async function automate(signal) {

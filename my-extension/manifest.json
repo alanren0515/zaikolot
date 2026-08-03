@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Zaiko Lottery Helper",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "在 Zaiko 抽选页面自动勾选 checkbox 并完成确认流程",
   "permissions": [
     "storage"
