@@ -134,12 +134,19 @@
     );
   }
 
-  function waitForTextLink(text, signal, timeout = ELEMENT_TIMEOUT) {
+  function waitForSuccessButton(signal, timeout = ELEMENT_TIMEOUT) {
     return waitForCondition(
-      () => Array.from(document.querySelectorAll('a')).find((element) => {
-        return isVisible(element) && element.textContent.includes(text);
-      }),
-      `link text: ${text}`,
+      () => {
+        const statusLink = findVisibleElement('a[href*="/lottery/status"]');
+        if (statusLink) {
+          return statusLink;
+        }
+
+        return Array.from(document.querySelectorAll('a, button')).find((element) => {
+          return isVisible(element) && containsText(element, '抽選状況を確認する');
+        });
+      },
+      'lottery status action',
       timeout,
       signal
     );
@@ -348,7 +355,7 @@
     confirmButton.click();
 
     log('等待申请成功状态');
-    const successButton = await waitForTextLink('抽選状況を確認する', signal, ELEMENT_TIMEOUT);
+    const successButton = await waitForSuccessButton(signal);
     await sleep(500, signal);
     ensureEnabled(signal);
     successButton.click();
