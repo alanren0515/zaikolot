@@ -295,9 +295,8 @@
     ensureEnabled(signal);
     confirmButton.click();
 
-    log('等待成功弹窗');
-    await waitForElement('#lottery-success-modal___BV_modal_body_', signal);
-    const successButton = await waitForTextLink('抽選状況を確認する', signal, 10000);
+    log('等待申请成功状态');
+    const successButton = await waitForTextLink('抽選状況を確認する', signal, ELEMENT_TIMEOUT);
     await sleep(500, signal);
     ensureEnabled(signal);
     successButton.click();
