@@ -6,7 +6,8 @@
   window.__zaikoLotteryHelperInstalled = true;
 
   const LOG_PREFIX = '[Zaiko Lottery Helper]';
-  const CHECKBOX_IDS = ['pay-later', 'checkboxZaikoTos', 'checkboxProfileTos'];
+  const OTHER_PAYMENT_TEXT = '当選後他の方法で支払う';
+  const REQUIRED_TERMS_IDS = ['checkboxZaikoTos', 'checkboxProfileTos'];
   const SUBMIT_SELECTOR = 'button.btn.btn-block.btn-xl.btn-brand';
   const PAGE_READY_TIMEOUT = 60000;
   const ELEMENT_TIMEOUT = 30000;
@@ -147,9 +148,9 @@
   function waitForLotteryPage(signal) {
     return waitForCondition(
       () => {
-        const hasKnownCheckbox = CHECKBOX_IDS.some((id) => document.getElementById(id));
+        const hasOtherPaymentOption = Boolean(findOtherPaymentControl());
         const hasSubmitButton = Boolean(findVisibleElement(SUBMIT_SELECTOR));
-        return hasKnownCheckbox || hasSubmitButton;
+        return hasOtherPaymentOption || hasSubmitButton;
       },
       'lottery page elements',
       PAGE_READY_TIMEOUT,
@@ -161,34 +162,63 @@
     return Array.from(document.querySelectorAll(selector)).find(isVisible);
   }
 
-  function findCheckboxClickTarget(checkbox) {
-    const linkedLabel = Array.from(document.querySelectorAll('label')).find((label) => {
-      return label.htmlFor === checkbox.id && isVisible(label);
-    });
-
-    if (linkedLabel) {
-      return linkedLabel;
-    }
-
-    const parentLabel = checkbox.closest('label');
-    if (parentLabel && isVisible(parentLabel)) {
-      return parentLabel;
-    }
-
-    const roleCheckbox = checkbox.closest('[role="checkbox"]');
-    if (roleCheckbox && isVisible(roleCheckbox)) {
-      return roleCheckbox;
-    }
-
-    return checkbox;
+  function normalizeText(text) {
+    return text.replace(/\s+/g, ' ').trim();
   }
 
-  function isCheckboxSelected(checkbox) {
-    if (checkbox.checked || checkbox.getAttribute('aria-checked') === 'true') {
+  function containsText(element, text) {
+    return normalizeText(element.textContent).includes(normalizeText(text));
+  }
+
+  function findOtherPaymentControl() {
+    const labels = Array.from(document.querySelectorAll('label')).filter((label) => {
+      return isVisible(label) && containsText(label, OTHER_PAYMENT_TEXT);
+    });
+
+    for (const label of labels) {
+      if (label.control) {
+        return label.control;
+      }
+
+      const input = label.querySelector('input[type="checkbox"], input[type="radio"]');
+      if (input) {
+        return input;
+      }
+    }
+
+    const roleControls = Array.from(document.querySelectorAll('[role="checkbox"], [role="radio"]'))
+      .filter((element) => isVisible(element) && containsText(element, OTHER_PAYMENT_TEXT));
+
+    for (const roleControl of roleControls) {
+      return roleControl.querySelector('input[type="checkbox"], input[type="radio"]') || roleControl;
+    }
+
+    const textCandidates = Array.from(document.querySelectorAll('span, div, p'))
+      .filter((element) => isVisible(element) && containsText(element, OTHER_PAYMENT_TEXT))
+      .sort((left, right) => left.textContent.length - right.textContent.length);
+
+    for (const textCandidate of textCandidates) {
+      let container = textCandidate;
+      for (let depth = 0; container && depth < 5; depth += 1) {
+        const control = container.querySelector(
+          'input[type="checkbox"], input[type="radio"], [role="checkbox"], [role="radio"]'
+        );
+        if (control) {
+          return control;
+        }
+        container = container.parentElement;
+      }
+    }
+
+    return null;
+  }
+
+  function isCheckboxSelected(control) {
+    if (control.checked || control.getAttribute('aria-checked') === 'true') {
       return true;
     }
 
-    const stateContainer = checkbox.closest('[role="checkbox"]');
+    const stateContainer = control.closest('[role="checkbox"], [role="radio"]');
     return Boolean(stateContainer && stateContainer.getAttribute('aria-checked') === 'true');
   }
 
@@ -224,13 +254,18 @@
     });
   }
 
-  async function checkCheckbox(id, signal) {
+  async function selectCheckbox(getControl, description, signal) {
     ensureEnabled(signal);
-    const checkbox = await waitForElementById(id, signal);
+    const checkbox = await waitForCondition(
+      getControl,
+      description,
+      ELEMENT_TIMEOUT,
+      signal
+    );
     ensureEnabled(signal);
 
     if (isCheckboxSelected(checkbox)) {
-      log(`已经勾选: ${id}`);
+      log(`已经勾选: ${description}`);
       return;
     }
 
@@ -238,17 +273,16 @@
       await sleep(500, signal);
       ensureEnabled(signal);
 
-      const currentCheckbox = document.getElementById(id) || checkbox;
-      const clickTarget = findCheckboxClickTarget(currentCheckbox);
-      clickTarget.click();
+      const currentCheckbox = getControl() || checkbox;
+      currentCheckbox.click();
 
       try {
         await waitForCondition(
           () => {
-            const updatedCheckbox = document.getElementById(id);
+            const updatedCheckbox = getControl();
             return updatedCheckbox && isCheckboxSelected(updatedCheckbox) ? updatedCheckbox : null;
           },
-          `checkbox selected: ${id}`,
+          `checkbox selected: ${description}`,
           CHECKBOX_CONFIRM_TIMEOUT,
           signal
         );
@@ -260,12 +294,28 @@
         }
 
         if (attempt === 2) {
-          throw new Error(`无法确认 checkbox 已勾选: ${id}`);
+          throw new Error(`无法确认 checkbox 已勾选: ${description}`);
         }
 
-        log(`第一次点击未确认成功，重试: ${id}`);
+        log(`第一次点击未确认成功，重试: ${description}`);
       }
     }
+  }
+
+  async function checkCheckboxById(id, signal) {
+    return selectCheckbox(
+      () => document.getElementById(id),
+      `checkbox id: ${id}`,
+      signal
+    );
+  }
+
+  async function checkOtherPaymentOption(signal) {
+    return selectCheckbox(
+      findOtherPaymentControl,
+      `支付方式: ${OTHER_PAYMENT_TEXT}`,
+      signal
+    );
   }
 
   async function automate(signal) {
@@ -275,8 +325,10 @@
     await waitForLotteryPage(signal);
     ensureEnabled(signal);
 
-    for (const id of CHECKBOX_IDS) {
-      await checkCheckbox(id, signal);
+    await checkOtherPaymentOption(signal);
+
+    for (const id of REQUIRED_TERMS_IDS) {
+      await checkCheckboxById(id, signal);
     }
 
     log('点击申请按钮');
