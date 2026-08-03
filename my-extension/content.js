@@ -1,83 +1,159 @@
 (function () {
-  if (window.__zaikoLotteryHelperRunning) {
+  if (window.__zaikoLotteryHelperInstalled) {
     return;
   }
 
+  window.__zaikoLotteryHelperInstalled = true;
+
   const LOG_PREFIX = '[Zaiko Lottery Helper]';
   const CHECKBOX_IDS = ['pay-later', 'checkboxZaikoTos', 'checkboxProfileTos'];
+  const SUBMIT_SELECTOR = 'button.btn.btn-block.btn-xl.btn-brand';
+  const PAGE_READY_TIMEOUT = 60000;
+  const ELEMENT_TIMEOUT = 30000;
+  const MAX_BACKGROUND_WAIT = 300000;
+  const POLL_INTERVAL = 500;
+
   let isEnabled = false;
+  let activeRun = null;
 
   function log(message) {
     console.log(`${LOG_PREFIX} ${message}`);
   }
 
-  function waitForElement(selector, timeout = 15000) {
-    return new Promise((resolve, reject) => {
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        if (!isEnabled) {
-          clearInterval(interval);
-          reject(new Error('脚本已关闭，停止等待元素'));
-          return;
-        }
-
-        const element = findVisibleElement(selector);
-        if (element) {
-          clearInterval(interval);
-          resolve(element);
-        } else if (Date.now() - startTime > timeout) {
-          clearInterval(interval);
-          reject(new Error(`Timeout waiting for element: ${selector}`));
-        }
-      }, 500);
-    });
+  function createAbortError(message = '脚本已关闭，停止自动执行') {
+    const error = new Error(message);
+    error.name = 'AbortError';
+    return error;
   }
 
-  function waitForElementById(id, timeout = 15000) {
-    return new Promise((resolve, reject) => {
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        if (!isEnabled) {
-          clearInterval(interval);
-          reject(new Error('脚本已关闭，停止等待元素'));
-          return;
-        }
-
-        const element = document.getElementById(id);
-        if (element) {
-          clearInterval(interval);
-          resolve(element);
-        } else if (Date.now() - startTime > timeout) {
-          clearInterval(interval);
-          reject(new Error(`Timeout waiting for element id: ${id}`));
-        }
-      }, 500);
-    });
+  function ensureEnabled(signal) {
+    if (!isEnabled || signal.aborted) {
+      throw createAbortError();
+    }
   }
 
-  function waitForTextLink(text, timeout = 15000) {
+  function waitForCondition(check, description, timeout, signal) {
     return new Promise((resolve, reject) => {
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        if (!isEnabled) {
-          clearInterval(interval);
-          reject(new Error('脚本已关闭，停止等待链接'));
+      let settled = false;
+      let intervalId;
+      let observer;
+      let visibleStartedAt = document.visibilityState === 'visible' ? Date.now() : null;
+      const hardDeadline = Date.now() + Math.max(timeout, MAX_BACKGROUND_WAIT);
+
+      function cleanup() {
+        clearInterval(intervalId);
+        observer?.disconnect();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        signal.removeEventListener('abort', handleAbort);
+      }
+
+      function finish(callback, value) {
+        if (settled) {
           return;
         }
 
-        const link = Array.from(document.querySelectorAll('a')).find((element) => {
-          return isVisible(element) && element.textContent.includes(text);
+        settled = true;
+        cleanup();
+        callback(value);
+      }
+
+      function handleAbort() {
+        finish(reject, createAbortError());
+      }
+
+      function handleVisibilityChange() {
+        visibleStartedAt = document.visibilityState === 'visible' ? Date.now() : null;
+        checkNow();
+      }
+
+      function checkNow() {
+        if (settled) {
+          return;
+        }
+
+        if (!isEnabled || signal.aborted) {
+          finish(reject, createAbortError());
+          return;
+        }
+
+        if (Date.now() >= hardDeadline) {
+          finish(reject, new Error(`Timeout waiting for ${description}`));
+          return;
+        }
+
+        if (document.visibilityState === 'visible' && visibleStartedAt === null) {
+          visibleStartedAt = Date.now();
+        }
+
+        if (visibleStartedAt !== null && Date.now() - visibleStartedAt >= timeout) {
+          finish(reject, new Error(`Timeout waiting for ${description}`));
+          return;
+        }
+
+        const result = check();
+        if (result) {
+          finish(resolve, result);
+        }
+      }
+
+      signal.addEventListener('abort', handleAbort, { once: true });
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      if (document.documentElement) {
+        observer = new MutationObserver(checkNow);
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'style', 'hidden', 'disabled', 'aria-hidden']
         });
+      }
 
-        if (link) {
-          clearInterval(interval);
-          resolve(link);
-        } else if (Date.now() - startTime > timeout) {
-          clearInterval(interval);
-          reject(new Error(`Timeout waiting for link text: ${text}`));
-        }
-      }, 500);
+      intervalId = setInterval(checkNow, POLL_INTERVAL);
+      checkNow();
     });
+  }
+
+  function waitForElement(selector, signal, timeout = ELEMENT_TIMEOUT) {
+    return waitForCondition(
+      () => findVisibleElement(selector),
+      `element: ${selector}`,
+      timeout,
+      signal
+    );
+  }
+
+  function waitForElementById(id, signal, timeout = ELEMENT_TIMEOUT) {
+    return waitForCondition(
+      () => document.getElementById(id),
+      `element id: ${id}`,
+      timeout,
+      signal
+    );
+  }
+
+  function waitForTextLink(text, signal, timeout = ELEMENT_TIMEOUT) {
+    return waitForCondition(
+      () => Array.from(document.querySelectorAll('a')).find((element) => {
+        return isVisible(element) && element.textContent.includes(text);
+      }),
+      `link text: ${text}`,
+      timeout,
+      signal
+    );
+  }
+
+  function waitForLotteryPage(signal) {
+    return waitForCondition(
+      () => {
+        const hasKnownCheckbox = CHECKBOX_IDS.some((id) => document.getElementById(id));
+        const hasSubmitButton = Boolean(findVisibleElement(SUBMIT_SELECTOR));
+        return hasKnownCheckbox || hasSubmitButton;
+      },
+      'lottery page elements',
+      PAGE_READY_TIMEOUT,
+      signal
+    );
   }
 
   function findVisibleElement(selector) {
@@ -94,31 +170,36 @@
       style.display !== 'none';
   }
 
-  function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  function sleep(ms, signal) {
+    return new Promise((resolve, reject) => {
+      let timerId = setTimeout(() => {
+        signal.removeEventListener('abort', handleAbort);
+        resolve();
+      }, ms);
+
+      function handleAbort() {
+        clearTimeout(timerId);
+        timerId = null;
+        reject(createAbortError());
+      }
+
+      if (signal.aborted) {
+        handleAbort();
+        return;
+      }
+
+      signal.addEventListener('abort', handleAbort, { once: true });
+    });
   }
 
-  function isLikelyLotteryPage() {
-    const hasKnownCheckbox = CHECKBOX_IDS.some((id) => document.getElementById(id));
-    const hasSubmitButton = Boolean(findVisibleElement('button.btn.btn-block.btn-xl.btn-brand'));
-
-    return hasKnownCheckbox || hasSubmitButton;
-  }
-
-  function ensureEnabled() {
-    if (!isEnabled) {
-      throw new Error('脚本已关闭，停止自动执行');
-    }
-  }
-
-  async function checkCheckbox(id) {
-    ensureEnabled();
-    const checkbox = await waitForElementById(id);
-    ensureEnabled();
+  async function checkCheckbox(id, signal) {
+    ensureEnabled(signal);
+    const checkbox = await waitForElementById(id, signal);
+    ensureEnabled(signal);
 
     if (!checkbox.checked) {
-      await sleep(500);
-      ensureEnabled();
+      await sleep(500, signal);
+      ensureEnabled(signal);
       checkbox.click();
       log(`已勾选: ${id}`);
       return;
@@ -127,49 +208,77 @@
     log(`已经勾选: ${id}`);
   }
 
-  async function automate() {
-    try {
-      window.__zaikoLotteryHelperRunning = true;
-      ensureEnabled();
+  async function automate(signal) {
+    ensureEnabled(signal);
 
-      if (!isLikelyLotteryPage()) {
-        log('当前页面不是抽选操作页面，跳过执行');
-        window.__zaikoLotteryHelperRunning = false;
-        return;
-      }
+    log('等待抽选页面元素');
+    await waitForLotteryPage(signal);
+    ensureEnabled(signal);
 
-      log('等待抽选页面加载');
-      ensureEnabled();
-
-      for (const id of CHECKBOX_IDS) {
-        await checkCheckbox(id);
-      }
-
-      log('点击申请按钮');
-      const submitButton = await waitForElement('button.btn.btn-block.btn-xl.btn-brand');
-      await sleep(500);
-      ensureEnabled();
-      submitButton.click();
-
-      log('等待确认弹窗');
-      await waitForElement('#lottery-confirmation-modal___BV_modal_body_');
-      const confirmButton = await waitForElement('button.btn.btn-block.primary-button.py-4.btn-pink');
-      await sleep(500);
-      ensureEnabled();
-      confirmButton.click();
-
-      log('等待成功弹窗');
-      await waitForElement('#lottery-success-modal___BV_modal_body_');
-      const successButton = await waitForTextLink('抽選状況を確認する', 10000);
-      await sleep(500);
-      ensureEnabled();
-      successButton.click();
-
-      log('流程执行完成');
-    } catch (error) {
-      console.error(`${LOG_PREFIX} 自动化过程中出错: ${error.message}`);
-      window.__zaikoLotteryHelperRunning = false;
+    for (const id of CHECKBOX_IDS) {
+      await checkCheckbox(id, signal);
     }
+
+    log('点击申请按钮');
+    const submitButton = await waitForElement(SUBMIT_SELECTOR, signal);
+    await sleep(500, signal);
+    ensureEnabled(signal);
+    submitButton.click();
+
+    log('等待确认弹窗');
+    await waitForElement('#lottery-confirmation-modal___BV_modal_body_', signal);
+    const confirmButton = await waitForElement(
+      'button.btn.btn-block.primary-button.py-4.btn-pink',
+      signal
+    );
+    await sleep(500, signal);
+    ensureEnabled(signal);
+    confirmButton.click();
+
+    log('等待成功弹窗');
+    await waitForElement('#lottery-success-modal___BV_modal_body_', signal);
+    const successButton = await waitForTextLink('抽選状況を確認する', signal, 10000);
+    await sleep(500, signal);
+    ensureEnabled(signal);
+    successButton.click();
+
+    log('流程执行完成');
+  }
+
+  function stopAutomation() {
+    if (activeRun) {
+      activeRun.controller.abort();
+      activeRun = null;
+    }
+
+    window.__zaikoLotteryHelperRunning = false;
+  }
+
+  function startAutomation() {
+    if (!isEnabled || activeRun) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const run = { controller };
+    activeRun = run;
+    window.__zaikoLotteryHelperRunning = true;
+
+    automate(controller.signal)
+      .catch((error) => {
+        if (error.name === 'AbortError') {
+          log('自动执行已停止');
+          return;
+        }
+
+        console.error(`${LOG_PREFIX} 自动化过程中出错: ${error.message}`);
+      })
+      .finally(() => {
+        if (activeRun === run) {
+          activeRun = null;
+          window.__zaikoLotteryHelperRunning = false;
+        }
+      });
   }
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -179,20 +288,36 @@
 
     isEnabled = Boolean(changes.enabled.newValue);
 
-    if (!isEnabled) {
-      log('脚本已关闭，后续动作会停止');
-      window.__zaikoLotteryHelperRunning = false;
+    if (isEnabled) {
+      log('脚本已开启，开始等待抽选页面');
+      startAutomation();
+      return;
+    }
+
+    log('脚本已关闭，停止后续动作');
+    stopAutomation();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isEnabled && !activeRun) {
+      startAutomation();
+    }
+  });
+
+  window.addEventListener('pageshow', () => {
+    if (isEnabled && !activeRun) {
+      startAutomation();
     }
   });
 
   chrome.storage.local.get({ enabled: false }, ({ enabled }) => {
     isEnabled = Boolean(enabled);
 
-    if (!enabled) {
+    if (!isEnabled) {
       log('脚本当前为关闭状态');
       return;
     }
 
-    setTimeout(automate, 1000);
+    startAutomation();
   });
 })();
