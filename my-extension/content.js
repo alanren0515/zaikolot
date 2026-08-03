@@ -293,7 +293,7 @@
           CHECKBOX_CONFIRM_TIMEOUT,
           signal
         );
-        log(`已确认勾选: ${id}`);
+        log(`已确认勾选: ${description}`);
         return;
       } catch (error) {
         if (error.name === 'AbortError') {
