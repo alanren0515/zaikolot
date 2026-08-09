@@ -52,6 +52,28 @@ python -m playwright install chromium
 python automation/desktop_app.py
 ```
 
+## Build a double-clickable macOS app
+
+The app bundle uses the separately installed Playwright Chromium from
+`~/Library/Caches/ms-playwright`, so the browser is not copied into Git or the
+application bundle. The application sets `PLAYWRIGHT_BROWSERS_PATH` to that
+shared macOS cache unless the environment already provides an explicit value.
+
+```bash
+.venv/bin/python -m pip install -r automation/requirements-dev.txt
+automation/build_macos_app.sh
+```
+
+The generated application is `dist/Zaiko Lottery Assistant.app`. Both `build/`
+and `dist/` are ignored by Git.
+
+A provider-free packaged-runtime check is available for release verification:
+
+```bash
+'dist/Zaiko Lottery Assistant.app/Contents/MacOS/Zaiko Lottery Assistant' \
+  --package-smoke-test
+```
+
 The older command-line manual workflow remains available as
 `automation/zaiko_manual_workflow.py`.
 

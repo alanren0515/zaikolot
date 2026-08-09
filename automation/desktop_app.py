@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import os
 import queue
+import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -11,9 +13,31 @@ from tkinter import filedialog, messagebox, ttk
 
 from account_store import Account, AccountStore
 from browser_session import BrowserSession
+from browser_session import fill_login_fields
+from zaiko_manual_workflow import CHECKBOX_SELECTORS, prepare_application
 
 
 APP_DATA_DIR = Path.home() / "Library" / "Application Support" / "Zaiko Lottery Assistant"
+PLAYWRIGHT_CACHE_DIR = Path.home() / "Library" / "Caches" / "ms-playwright"
+os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(PLAYWRIGHT_CACHE_DIR))
+
+
+def run_package_smoke_test() -> int:
+    """Verify packaged Playwright assets without network or persistent data."""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        controls = "".join(f'<input type="checkbox" id="{selector[1:]}">' for selector in CHECKBOX_SELECTORS)
+        page.set_content(f'<input type="email"><input type="password">{controls}')
+        fill_login_fields(page, "smoke@example.invalid", "not-a-real-password")
+        prepare_application(page, 3_000)
+        if not all(page.locator(selector).is_checked() for selector in CHECKBOX_SELECTORS):
+            browser.close()
+            return 1
+        browser.close()
+    return 0
 
 
 def is_dark_theme(window, style: ttk.Style) -> bool:
@@ -259,4 +283,6 @@ class App(tk.Tk):
 
 
 if __name__ == "__main__":
+    if "--package-smoke-test" in sys.argv:
+        raise SystemExit(run_package_smoke_test())
     App().mainloop()

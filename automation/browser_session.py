@@ -8,6 +8,8 @@ from zaiko_manual_workflow import LOGIN_URL, prepare_application, validate_targe
 
 
 EMAIL_SELECTORS = (
+    '#identifier-input',
+    'input[name="identifier"]',
     'input[type="email"]',
     'input[name="email"]',
     '#email',

@@ -24,7 +24,7 @@ class FakeLocator:
 class FakePage:
     def __init__(self) -> None:
         self.locators = {
-            'input[type="email"]': FakeLocator(True),
+            '#identifier-input': FakeLocator(True),
             'input[type="password"]': FakeLocator(True),
         }
         self.requested: list[str] = []
@@ -40,7 +40,7 @@ class BrowserSessionTests(unittest.TestCase):
 
         fill_login_fields(page, "me@example.com", "secret")
 
-        self.assertEqual(page.locators['input[type="email"]'].value, "me@example.com")
+        self.assertEqual(page.locators['#identifier-input'].value, "me@example.com")
         self.assertEqual(page.locators['input[type="password"]'].value, "secret")
         self.assertEqual(len(page.requested), 2)
 

@@ -3,6 +3,9 @@
 *.csv
 *.code-workspace
 .venv/
+/build/
+/dist/
+/*.spec
 __pycache__/
 automation/.playwright-profile/
 automation/*.json
