@@ -97,6 +97,26 @@ class DesktopAppTests(unittest.TestCase):
 
         self.assertEqual(sent, [("prepare_target", target)])
 
+    @patch("desktop_app.messagebox.askokcancel", return_value=True)
+    def test_confirmed_event_frame_uses_exact_name(self, _askokcancel) -> None:
+        sent: list[tuple] = []
+        event_url = "https://akb48.zaiko.io/ja/e/example"
+        app = type(
+            "FakeApp",
+            (),
+            {
+                "url_var": StringValue(event_url),
+                "_send": lambda _self, *args: sent.append(args),
+            },
+        )()
+
+        App._prepare_frame(app, "柱の会 会員枠")
+
+        self.assertEqual(
+            sent,
+            [("prepare_event_frame", event_url, "柱の会 会員枠")],
+        )
+
     def test_test_mode_controls_credential_button_state(self) -> None:
         fill_button = StateRecorder()
         login_button = StateRecorder()

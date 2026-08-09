@@ -11,3 +11,4 @@ automation/.playwright-profile/
 automation/*.json
 automation/.app-data/
 .env
+.playwright-cli/

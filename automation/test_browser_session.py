@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from browser_session import BrowserSession, fill_login_fields, submit_login
 
@@ -129,6 +130,26 @@ class BrowserSessionTests(unittest.TestCase):
         page.url = "https://akb48.zaiko.io/account"
 
         self.assertEqual(submit_login(page, "me@example.com", "secret"), "logged_in")
+
+    @patch("browser_session.find_frame_application_url", return_value="https://akb48.zaiko.io/buy/example")
+    def test_event_frame_reports_login_required(self, _find_url) -> None:
+        session = BrowserSession()
+        session.page = FakePage()
+
+        result = session.prepare_event_frame(
+            "https://akb48.zaiko.io/ja/e/example",
+            "映像倉庫会員枠",
+            timeout_ms=500,
+        )
+
+        self.assertEqual(result, "login_required")
+        self.assertEqual(
+            session.page.goto_urls,
+            [
+                "https://akb48.zaiko.io/ja/e/example",
+                "https://akb48.zaiko.io/buy/example",
+            ],
+        )
 
     def test_same_profile_reuses_context(self) -> None:
         with TemporaryDirectory() as directory:

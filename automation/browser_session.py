@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from time import monotonic
 
+from zaiko_event_workflow import find_frame_application_url, validate_event_url
 from zaiko_manual_workflow import LOGIN_URL, prepare_application, validate_target_url
 
 
@@ -143,6 +144,26 @@ class BrowserSession:
         if not self.page:
             raise RuntimeError("请先打开登录页面")
         return submit_login(self.page, email, password)
+
+    def prepare_event_frame(
+        self, event_url: str, frame_name: str, timeout_ms: int = 30_000
+    ) -> str:
+        if not self.page:
+            raise RuntimeError("请先打开浏览器并完成登录")
+        event_url = validate_event_url(event_url)
+        self.page.goto(event_url, wait_until="domcontentloaded")
+        target = find_frame_application_url(self.page, frame_name, timeout_ms)
+        self.page.goto(target, wait_until="domcontentloaded")
+
+        deadline = monotonic() + timeout_ms / 1000
+        while monotonic() < deadline:
+            if self.page.locator("#pay-later").count():
+                prepare_application(self.page, timeout_ms)
+                return "prepared"
+            if _first_visible(self.page, EMAIL_SELECTORS) is not None:
+                return "login_required"
+            self.page.wait_for_timeout(200)
+        return "manual_step_required"
 
     def prepare_target(self, target_url: str, timeout_ms: int = 30_000) -> None:
         if not self.page:

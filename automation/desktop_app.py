@@ -14,6 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 from account_store import Account, AccountStore
 from browser_session import BrowserSession
 from browser_session import fill_login_fields
+from zaiko_event_workflow import SUPPORTED_FRAMES
 from zaiko_manual_workflow import CHECKBOX_SELECTORS, prepare_application
 
 
@@ -163,7 +164,7 @@ class App(tk.Tk):
 
         target_frame = tk.LabelFrame(
             root,
-            text="抽选页面",
+            text="公演 / 抽选页面",
             padx=12,
             pady=12,
             foreground=primary,
@@ -175,9 +176,22 @@ class App(tk.Tk):
         )
         target_frame.grid(row=3, column=0, sticky="ew", pady=16)
         target_frame.columnconfigure(0, weight=1)
+        target_frame.columnconfigure(1, weight=1)
         self.url_var = tk.StringVar()
-        ttk.Entry(target_frame, textvariable=self.url_var).grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ttk.Button(target_frame, text="打开并勾选", command=self._prepare).grid(row=0, column=1)
+        ttk.Entry(target_frame, textvariable=self.url_var).grid(
+            row=0, column=0, columnspan=2, sticky="ew", padx=(0, 8)
+        )
+        ttk.Button(target_frame, text="直接打开 /apply/", command=self._prepare).grid(row=0, column=2)
+        ttk.Button(
+            target_frame,
+            text=SUPPORTED_FRAMES[0],
+            command=lambda: self._prepare_frame(SUPPORTED_FRAMES[0]),
+        ).grid(row=1, column=0, sticky="ew", pady=(10, 0), padx=(0, 4))
+        ttk.Button(
+            target_frame,
+            text=SUPPORTED_FRAMES[1],
+            command=lambda: self._prepare_frame(SUPPORTED_FRAMES[1]),
+        ).grid(row=1, column=1, columnspan=2, sticky="ew", pady=(10, 0), padx=(4, 0))
 
         controls = tk.Frame(root, background=surface)
         controls.grid(row=4, column=0, sticky="ew")
@@ -274,11 +288,27 @@ class App(tk.Tk):
             return
         self._send("prepare_target", target)
 
+    def _prepare_frame(self, frame_name: str) -> None:
+        event_url = self.url_var.get().strip()
+        if not event_url:
+            messagebox.showwarning("需要 URL", "请输入具体的公演页面 URL。")
+            return
+        confirmed = messagebox.askokcancel(
+            "确认会员枠",
+            f"程序只会打开“{frame_name}”的抽选入口。\n"
+            "如果页面已经进入申请表，将勾选固定的三个选项。\n\n"
+            "不会点击最终抽选提交。是否继续？",
+        )
+        if not confirmed:
+            return
+        self._send("prepare_event_frame", event_url, frame_name)
+
     def _send(self, name: str, *args) -> None:
         labels = {
             "open_login": "正在打开独立账号会话…",
             "fill_credentials": "正在填入账号密码（不会点击登录）…",
             "attempt_login": "正在填入账号密码并尝试登录一次…",
+            "prepare_event_frame": "正在定位指定会员枠并打开抽选入口…",
             "prepare_target": "正在打开目标页面并勾选指定选项…",
             "close": "正在关闭浏览器…",
         }
@@ -305,6 +335,14 @@ class App(tk.Tk):
                 "login_not_completed": "已点击登录，但页面仍停留在登录页；请查看页面上的账号或验证提示。",
             }
             self.status_var.set(messages.get(detail, "登录测试已完成，请检查浏览器页面。"))
+            return
+        if name == "prepare_event_frame":
+            messages = {
+                "prepared": "已进入指定会员枠并勾选三个固定选项；没有提交抽选。",
+                "login_required": "已打开指定会员枠；当前页面需要先登录。登录完成后再次点击同一会员枠。",
+                "manual_step_required": "已打开指定会员枠，但尚未出现申请表；请完成页面上的人工步骤后再次点击。",
+            }
+            self.status_var.set(messages.get(detail, "会员枠页面已打开，请检查浏览器。"))
             return
         messages = {
             "open_login": "登录页面已打开。请手动完成登录和 Cloudflare 验证。",

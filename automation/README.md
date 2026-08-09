@@ -17,16 +17,24 @@ that fills them and clicks the site's login button once. Both stop for manual
 verification when the site requires it. Preparing a target requires an explicit
 confirmation before the two terms-agreement checkboxes are selected.
 
+The event-page workflow accepts an `https://akb48.zaiko.io/ja/e/...` URL and
+locates only `映像倉庫会員枠` or `柱の会 会員枠` by exact visible text. Links
+from every other ticket frame are ignored. A direct `/apply/...` URL remains
+available for troubleshooting and compatibility with the original extension.
+
 ## Workflow
 
 1. Import local account metadata and secrets from a CSV into Keychain.
 2. Select an account and open its isolated login profile.
 3. Optionally fill credentials during testing or explicitly attempt one login,
    then complete all Cloudflare, CAPTCHA, or OTP checks manually.
-4. Open one explicitly supplied `akb48.zaiko.io` application URL.
-5. Check only the three selectors already used by the stable extension:
+4. Paste the event URL and choose exactly one of the two supported membership
+   frames, or paste a direct `akb48.zaiko.io/apply/...` URL.
+5. If login or another manual page step is shown, complete it and select the
+   same frame again.
+6. Check only the three selectors already used by the stable extension:
    `#pay-later`, `#checkboxZaikoTos`, and `#checkboxProfileTos`.
-6. Stop before the application submit button.
+7. Stop before the application submit button.
 
 The persistent profile contains session cookies. It is ignored by Git and must
 not be copied, shared, or committed.
