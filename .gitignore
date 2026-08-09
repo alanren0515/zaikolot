@@ -1,3 +1,9 @@
 .DS_Store
 *.zip
 *.code-workspace
+.venv/
+__pycache__/
+automation/.playwright-profile/
+automation/accounts*.csv
+automation/credentials*.csv
+.env
