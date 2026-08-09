@@ -51,23 +51,33 @@ def is_dark_theme(window, style: ttk.Style) -> bool:
 
 
 class BrowserWorker:
-    def __init__(self) -> None:
+    def __init__(self, session_factory=BrowserSession) -> None:
         self.commands: queue.Queue = queue.Queue()
         self.results: queue.Queue = queue.Queue()
+        self._session_factory = session_factory
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
     def submit(self, name: str, *args) -> None:
         self.commands.put((name, args))
 
+    def close(self, timeout: float = 5.0) -> bool:
+        if self.thread.is_alive():
+            self.commands.put(("quit", ()))
+            self.thread.join(timeout)
+        return not self.thread.is_alive()
+
     def _run(self) -> None:
-        session = BrowserSession()
+        session = self._session_factory()
         while True:
             name, args = self.commands.get()
-            try:
-                if name == "quit":
+            if name == "quit":
+                try:
                     session.close()
-                    return
+                except Exception as exc:
+                    self.results.put((False, name, str(exc)))
+                return
+            try:
                 detail = getattr(session, name)(*args)
                 self.results.put((True, name, detail or ""))
             except Exception as exc:
@@ -83,6 +93,7 @@ class App(tk.Tk):
         self.store = AccountStore(APP_DATA_DIR)
         self.accounts: list[Account] = []
         self.active_account_id: str | None = None
+        self.busy = False
         self.worker = BrowserWorker()
         self._build()
         self._reload_accounts()
@@ -332,7 +343,10 @@ class App(tk.Tk):
             return
         self._send("prepare_event_frame", account.account_id, event_url, frame_name)
 
-    def _send(self, name: str, *args) -> None:
+    def _send(self, name: str, *args) -> bool:
+        if self.busy:
+            self.status_var.set("已有操作正在进行，请等待完成后再继续。")
+            return False
         labels = {
             "open_login": "正在打开独立账号会话…",
             "fill_credentials": "正在填入账号密码（不会点击登录）…",
@@ -341,8 +355,10 @@ class App(tk.Tk):
             "prepare_target": "正在打开目标页面并勾选指定选项…",
             "close": "正在关闭浏览器…",
         }
+        self.busy = True
         self.status_var.set(labels.get(name, "处理中…"))
         self.worker.submit(name, *args)
+        return True
 
     def _poll_worker(self) -> None:
         try:
@@ -353,6 +369,7 @@ class App(tk.Tk):
         self.after(100, self._poll_worker)
 
     def _show_worker_result(self, ok: bool, name: str, detail: str) -> None:
+        self.busy = False
         if not ok:
             if name in {"open_login", "close"}:
                 self.active_account_id = None
@@ -396,7 +413,7 @@ class App(tk.Tk):
         self.status_var.set(messages.get(name, "完成"))
 
     def _close(self) -> None:
-        self.worker.submit("quit")
+        self.worker.close()
         self.destroy()
 
 

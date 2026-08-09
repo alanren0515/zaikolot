@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from account_store import Account
-from desktop_app import App, is_dark_theme
+from desktop_app import App, BrowserWorker, is_dark_theme
 
 
 class FakeTk:
@@ -57,6 +57,19 @@ class TextRecorder:
 
     def set(self, value: str) -> None:
         self.value = value
+
+
+class WorkerRecorder:
+    def __init__(self) -> None:
+        self.commands: list[tuple] = []
+
+    def submit(self, *args) -> None:
+        self.commands.append(args)
+
+
+class FailingCloseSession:
+    def close(self) -> None:
+        raise RuntimeError("close failed")
 
 
 class DesktopAppTests(unittest.TestCase):
@@ -172,6 +185,7 @@ class DesktopAppTests(unittest.TestCase):
             (),
             {
                 "active_account_id": None,
+                "busy": True,
                 "accounts": [Account("one", "账号 A")],
                 "status_var": status,
             },
@@ -187,13 +201,45 @@ class DesktopAppTests(unittest.TestCase):
         app = type(
             "FakeApp",
             (),
-            {"active_account_id": "one", "status_var": status},
+            {"active_account_id": "one", "busy": True, "status_var": status},
         )()
 
         App._show_worker_result(app, True, "close", "")
 
         self.assertIsNone(app.active_account_id)
+        self.assertFalse(app.busy)
         self.assertEqual(status.value, "浏览器已关闭。")
+
+    def test_repeated_command_is_not_queued_while_busy(self) -> None:
+        status = TextRecorder()
+        worker = WorkerRecorder()
+        app = type(
+            "FakeApp",
+            (),
+            {"busy": False, "status_var": status, "worker": worker},
+        )()
+
+        self.assertTrue(App._send(app, "open_login", "profile-a"))
+        self.assertFalse(App._send(app, "open_login", "profile-b"))
+
+        self.assertEqual(worker.commands, [("open_login", "profile-a")])
+        self.assertIn("正在进行", status.value)
+
+    def test_browser_worker_closes_idle_thread(self) -> None:
+        worker = BrowserWorker()
+
+        self.assertTrue(worker.close())
+        self.assertFalse(worker.thread.is_alive())
+
+    def test_browser_worker_stops_even_if_session_close_fails(self) -> None:
+        worker = BrowserWorker(FailingCloseSession)
+
+        self.assertTrue(worker.close())
+
+        ok, name, detail = worker.results.get_nowait()
+        self.assertFalse(ok)
+        self.assertEqual(name, "quit")
+        self.assertIn("close failed", detail)
 
 
 if __name__ == "__main__":

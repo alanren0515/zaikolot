@@ -5,6 +5,8 @@ Chromium session. Each account gets a separate persistent browser profile.
 Selecting a different account in the UI does not silently reuse the old
 profile: credential and lottery actions remain blocked until that account's
 browser session has been explicitly opened.
+Only one browser command can run at a time, and closing the desktop app waits
+briefly for the active Playwright context to release its Chromium processes.
 
 CSV columns are `label,email,password` (`label` is optional). Import writes each
 email/password pair to the operating-system Keychain and stores only account
