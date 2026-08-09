@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from time import monotonic
 
 from zaiko_manual_workflow import LOGIN_URL, prepare_application, validate_target_url
 
@@ -19,22 +20,79 @@ PASSWORD_SELECTORS = (
     'input[name="password"]',
     '#password',
 )
+LOGIN_SUBMIT_SELECTORS = (
+    'button[type="submit"]',
+    'input[type="submit"]',
+)
+CLOUDFLARE_SELECTORS = (
+    'iframe[src*="challenges.cloudflare.com"]',
+    '.cf-turnstile',
+    'input[name="cf-turnstile-response"]',
+)
 
 
-def _fill_first_visible(page, selectors: tuple[str, ...], value: str, field_name: str) -> str:
-    for selector in selectors:
-        locator = page.locator(selector).first
-        if locator.count() and locator.is_visible():
-            locator.fill(value)
-            return selector
+def _fill_first_visible(
+    page,
+    selectors: tuple[str, ...],
+    value: str,
+    field_name: str,
+    timeout_ms: int,
+) -> str:
+    deadline = monotonic() + timeout_ms / 1000
+    while True:
+        for selector in selectors:
+            locator = page.locator(selector).first
+            if locator.count() and locator.is_visible():
+                locator.fill(value)
+                return selector
+        remaining_ms = int((deadline - monotonic()) * 1000)
+        if remaining_ms <= 0:
+            break
+        page.wait_for_timeout(min(100, remaining_ms))
     raise RuntimeError(f"登录页面中找不到可见的{field_name}输入框")
 
 
-def fill_login_fields(page, email: str, password: str) -> tuple[str, str]:
+def fill_login_fields(
+    page, email: str, password: str, timeout_ms: int = 15_000
+) -> tuple[str, str]:
     """Fill credentials only; never click login or challenge controls."""
-    email_selector = _fill_first_visible(page, EMAIL_SELECTORS, email, "账号")
-    password_selector = _fill_first_visible(page, PASSWORD_SELECTORS, password, "密码")
+    email_selector = _fill_first_visible(
+        page, EMAIL_SELECTORS, email, "账号", timeout_ms
+    )
+    password_selector = _fill_first_visible(
+        page, PASSWORD_SELECTORS, password, "密码", timeout_ms
+    )
     return email_selector, password_selector
+
+
+def _first_visible(page, selectors: tuple[str, ...]):
+    for selector in selectors:
+        locator = page.locator(selector).first
+        if locator.count() and locator.is_visible():
+            return locator
+    return None
+
+
+def submit_login(page, email: str, password: str, timeout_ms: int = 15_000) -> str:
+    """Fill and submit login once without interacting with bot challenges."""
+    fill_login_fields(page, email, password, timeout_ms)
+    submit = _first_visible(page, LOGIN_SUBMIT_SELECTORS)
+    if submit is None:
+        raise RuntimeError("登录页面中找不到可见的登录按钮")
+
+    try:
+        submit.click(timeout=min(timeout_ms, 5_000))
+    except Exception as exc:
+        if _first_visible(page, CLOUDFLARE_SELECTORS) is not None:
+            return "manual_verification_required"
+        raise RuntimeError("登录按钮未能完成点击") from exc
+
+    page.wait_for_timeout(min(timeout_ms, 3_000))
+    if "/login" not in page.url:
+        return "logged_in"
+    if _first_visible(page, CLOUDFLARE_SELECTORS) is not None:
+        return "manual_verification_required"
+    return "login_not_completed"
 
 
 class BrowserSession:
@@ -80,6 +138,11 @@ class BrowserSession:
         if not self.page:
             raise RuntimeError("请先打开登录页面")
         fill_login_fields(self.page, email, password)
+
+    def attempt_login(self, email: str, password: str) -> str:
+        if not self.page:
+            raise RuntimeError("请先打开登录页面")
+        return submit_login(self.page, email, password)
 
     def prepare_target(self, target_url: str, timeout_ms: int = 30_000) -> None:
         if not self.page:

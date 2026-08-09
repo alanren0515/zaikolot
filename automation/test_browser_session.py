@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from browser_session import BrowserSession, fill_login_fields
+from browser_session import BrowserSession, fill_login_fields, submit_login
 
 
 class FakeLocator:
@@ -12,6 +12,7 @@ class FakeLocator:
         self.visible = visible
         self.value = None
         self.first = self
+        self.click_count = 0
 
     def count(self) -> int:
         return 1 if self.visible else 0
@@ -22,14 +23,20 @@ class FakeLocator:
     def fill(self, value: str) -> None:
         self.value = value
 
+    def click(self, **_kwargs) -> None:
+        self.click_count += 1
+
 
 class FakePage:
-    def __init__(self) -> None:
+    def __init__(self, reveal_after_wait: bool = False) -> None:
+        self.reveal_after_wait = reveal_after_wait
         self.locators = {
-            '#identifier-input': FakeLocator(True),
-            'input[type="password"]': FakeLocator(True),
+            '#identifier-input': FakeLocator(not reveal_after_wait),
+            'input[type="password"]': FakeLocator(not reveal_after_wait),
+            'button[type="submit"]': FakeLocator(True),
         }
         self.requested: list[str] = []
+        self.url = "https://akb48.zaiko.io/login"
 
     def locator(self, selector: str) -> FakeLocator:
         self.requested.append(selector)
@@ -38,6 +45,12 @@ class FakePage:
     def goto(self, url: str, **_kwargs) -> None:
         self.goto_urls = getattr(self, "goto_urls", [])
         self.goto_urls.append(url)
+
+    def wait_for_timeout(self, _timeout_ms: int) -> None:
+        if self.reveal_after_wait:
+            self.locators['#identifier-input'].visible = True
+            self.locators['input[type="password"]'].visible = True
+            self.reveal_after_wait = False
 
 
 class FakeContext:
@@ -94,6 +107,28 @@ class BrowserSessionTests(unittest.TestCase):
         self.assertEqual(page.locators['#identifier-input'].value, "me@example.com")
         self.assertEqual(page.locators['input[type="password"]'].value, "secret")
         self.assertEqual(len(page.requested), 2)
+
+    def test_fill_login_fields_waits_for_delayed_form(self) -> None:
+        page = FakePage(reveal_after_wait=True)
+
+        fill_login_fields(page, "me@example.com", "secret", timeout_ms=500)
+
+        self.assertEqual(page.locators['#identifier-input'].value, "me@example.com")
+        self.assertEqual(page.locators['input[type="password"]'].value, "secret")
+
+    def test_submit_login_clicks_only_submit_and_reports_pending(self) -> None:
+        page = FakePage()
+
+        result = submit_login(page, "me@example.com", "secret")
+
+        self.assertEqual(result, "login_not_completed")
+        self.assertEqual(page.locators['button[type="submit"]'].click_count, 1)
+
+    def test_submit_login_reports_success_after_navigation(self) -> None:
+        page = FakePage()
+        page.url = "https://akb48.zaiko.io/account"
+
+        self.assertEqual(submit_login(page, "me@example.com", "secret"), "logged_in")
 
     def test_same_profile_reuses_context(self) -> None:
         with TemporaryDirectory() as directory:

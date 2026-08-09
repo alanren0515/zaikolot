@@ -98,18 +98,24 @@ class DesktopAppTests(unittest.TestCase):
         self.assertEqual(sent, [("prepare_target", target)])
 
     def test_test_mode_controls_credential_button_state(self) -> None:
-        button = StateRecorder()
+        fill_button = StateRecorder()
+        login_button = StateRecorder()
         app = type(
             "FakeApp",
             (),
-            {"fill_button": button, "test_mode_var": BooleanValue(True)},
+            {
+                "fill_button": fill_button,
+                "login_button": login_button,
+                "test_mode_var": BooleanValue(True),
+            },
         )()
 
         App._update_test_mode(app)
         app.test_mode_var = BooleanValue(False)
         App._update_test_mode(app)
 
-        self.assertEqual(button.states, ["normal", "disabled"])
+        self.assertEqual(fill_button.states, ["normal", "disabled"])
+        self.assertEqual(login_button.states, ["normal", "disabled"])
 
 
 if __name__ == "__main__":

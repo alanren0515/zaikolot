@@ -67,8 +67,8 @@ class BrowserWorker:
                 if name == "quit":
                     session.close()
                     return
-                getattr(session, name)(*args)
-                self.results.put((True, name, ""))
+                detail = getattr(session, name)(*args)
+                self.results.put((True, name, detail or ""))
             except Exception as exc:
                 self.results.put((False, name, str(exc)))
 
@@ -77,8 +77,8 @@ class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Zaiko Lottery Assistant")
-        self.geometry("620x430")
-        self.minsize(560, 400)
+        self.geometry("620x500")
+        self.minsize(560, 470)
         self.store = AccountStore(APP_DATA_DIR)
         self.accounts: list[Account] = []
         self.worker = BrowserWorker()
@@ -146,13 +146,20 @@ class App(tk.Tk):
         self.fill_button.grid(
             row=1, column=1, sticky="ew", pady=(10, 0)
         )
+        self.login_button = ttk.Button(
+            account_frame,
+            text="填写并尝试登录",
+            command=self._attempt_login,
+            state="disabled",
+        )
+        self.login_button.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         self.test_mode_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             account_frame,
-            text="测试模式：允许填入凭据",
+            text="测试模式：允许使用凭据尝试登录",
             variable=self.test_mode_var,
             command=self._update_test_mode,
-        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
         target_frame = tk.LabelFrame(
             root,
@@ -193,7 +200,9 @@ class App(tk.Tk):
             self.account_box.current(0)
 
     def _update_test_mode(self) -> None:
-        self.fill_button.configure(state="normal" if self.test_mode_var.get() else "disabled")
+        state = "normal" if self.test_mode_var.get() else "disabled"
+        self.fill_button.configure(state=state)
+        self.login_button.configure(state=state)
 
     def _selected_account(self) -> Account | None:
         index = self.account_box.current()
@@ -232,6 +241,25 @@ class App(tk.Tk):
             return
         self._send("fill_credentials", email, password)
 
+    def _attempt_login(self) -> None:
+        if not self.test_mode_var.get():
+            return
+        account = self._selected_account()
+        if not account:
+            return
+        if not messagebox.askokcancel(
+            "测试登录",
+            "程序将填入所选测试账号并点击一次登录按钮。\n"
+            "不会操作 Cloudflare 验证，也不会提交抽选。是否继续？",
+        ):
+            return
+        try:
+            identifier, password = self.store.credentials_for(account)
+        except Exception as exc:
+            messagebox.showerror("无法读取密码", str(exc))
+            return
+        self._send("attempt_login", identifier, password)
+
     def _prepare(self) -> None:
         target = self.url_var.get().strip()
         if not target:
@@ -250,6 +278,7 @@ class App(tk.Tk):
         labels = {
             "open_login": "正在打开独立账号会话…",
             "fill_credentials": "正在填入账号密码（不会点击登录）…",
+            "attempt_login": "正在填入账号密码并尝试登录一次…",
             "prepare_target": "正在打开目标页面并勾选指定选项…",
             "close": "正在关闭浏览器…",
         }
@@ -268,6 +297,14 @@ class App(tk.Tk):
         if not ok:
             self.status_var.set(f"失败：{detail}")
             messagebox.showerror("操作失败", detail)
+            return
+        if name == "attempt_login":
+            messages = {
+                "logged_in": "测试登录成功。",
+                "manual_verification_required": "已尝试登录；页面仍需要你手动完成 Cloudflare 验证。",
+                "login_not_completed": "已点击登录，但页面仍停留在登录页；请查看页面上的账号或验证提示。",
+            }
+            self.status_var.set(messages.get(detail, "登录测试已完成，请检查浏览器页面。"))
             return
         messages = {
             "open_login": "登录页面已打开。请手动完成登录和 Cloudflare 验证。",

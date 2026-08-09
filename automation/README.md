@@ -9,19 +9,20 @@ labels and opaque account IDs in local application data. The CSV is never
 copied into the repository. For best security, delete or encrypt the plaintext
 CSV after confirming the Keychain import.
 
-The program does not click login, interact with Cloudflare/CAPTCHA/OTP, run
-headless, use stealth plugins, touch registered-card controls, or submit an
-application. Credential filling is disabled by default; enabling test mode lets
-the credential button fill the two login fields and then stop for manual
-verification and login. Preparing a target requires an explicit confirmation
-before the two terms-agreement checkboxes are selected.
+The program does not interact with Cloudflare/CAPTCHA/OTP, run headless, use
+stealth plugins, touch registered-card controls, or submit an application.
+Credential use is disabled by default. Enabling test mode provides one action
+that only fills the two login fields and another explicitly confirmed action
+that fills them and clicks the site's login button once. Both stop for manual
+verification when the site requires it. Preparing a target requires an explicit
+confirmation before the two terms-agreement checkboxes are selected.
 
 ## Workflow
 
 1. Import local account metadata and secrets from a CSV into Keychain.
 2. Select an account and open its isolated login profile.
-3. Optionally fill credentials during testing, then complete login and all
-   Cloudflare, CAPTCHA, or OTP checks manually.
+3. Optionally fill credentials during testing or explicitly attempt one login,
+   then complete all Cloudflare, CAPTCHA, or OTP checks manually.
 4. Open one explicitly supplied `akb48.zaiko.io` application URL.
 5. Check only the three selectors already used by the stable extension:
    `#pay-later`, `#checkboxZaikoTos`, and `#checkboxProfileTos`.
