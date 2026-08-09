@@ -108,11 +108,19 @@ class BrowserSession:
     def is_open(self) -> bool:
         return self._context is not None
 
-    def open_login(self, profile_dir: Path) -> None:
+    def _ensure_active_profile(self, expected_account_id: str) -> None:
+        if (
+            not self.page
+            or self._profile_dir is None
+            or self._profile_dir.name != expected_account_id
+        ):
+            raise RuntimeError("浏览器账号会话已变化，请重新打开所选账号")
+
+    def open_login(self, profile_dir: Path) -> str:
         profile_dir = profile_dir.expanduser().resolve()
         if self.is_open and profile_dir == self._profile_dir:
             self.page.goto(LOGIN_URL, wait_until="domcontentloaded")
-            return
+            return profile_dir.name
         if self.is_open:
             self.close()
 
@@ -134,22 +142,28 @@ class BrowserSession:
         self._profile_dir = profile_dir
         self.page = self._context.pages[0] if self._context.pages else self._context.new_page()
         self.page.goto(LOGIN_URL, wait_until="domcontentloaded")
+        return profile_dir.name
 
-    def fill_credentials(self, email: str, password: str) -> None:
-        if not self.page:
-            raise RuntimeError("请先打开登录页面")
+    def fill_credentials(
+        self, expected_account_id: str, email: str, password: str
+    ) -> None:
+        self._ensure_active_profile(expected_account_id)
         fill_login_fields(self.page, email, password)
 
-    def attempt_login(self, email: str, password: str) -> str:
-        if not self.page:
-            raise RuntimeError("请先打开登录页面")
+    def attempt_login(
+        self, expected_account_id: str, email: str, password: str
+    ) -> str:
+        self._ensure_active_profile(expected_account_id)
         return submit_login(self.page, email, password)
 
     def prepare_event_frame(
-        self, event_url: str, frame_name: str, timeout_ms: int = 30_000
+        self,
+        expected_account_id: str,
+        event_url: str,
+        frame_name: str,
+        timeout_ms: int = 30_000,
     ) -> str:
-        if not self.page:
-            raise RuntimeError("请先打开浏览器并完成登录")
+        self._ensure_active_profile(expected_account_id)
         event_url = validate_event_url(event_url)
         self.page.goto(event_url, wait_until="domcontentloaded")
         target = find_frame_application_url(self.page, frame_name, timeout_ms)
@@ -165,9 +179,13 @@ class BrowserSession:
             self.page.wait_for_timeout(200)
         return "manual_step_required"
 
-    def prepare_target(self, target_url: str, timeout_ms: int = 30_000) -> None:
-        if not self.page:
-            raise RuntimeError("请先打开浏览器并手动完成登录")
+    def prepare_target(
+        self,
+        expected_account_id: str,
+        target_url: str,
+        timeout_ms: int = 30_000,
+    ) -> None:
+        self._ensure_active_profile(expected_account_id)
         target_url = validate_target_url(target_url)
         self.page.goto(target_url, wait_until="domcontentloaded")
         prepare_application(self.page, timeout_ms)

@@ -2,6 +2,9 @@
 
 This prototype provides a lightweight Tkinter UI backed by one visible Playwright
 Chromium session. Each account gets a separate persistent browser profile.
+Selecting a different account in the UI does not silently reuse the old
+profile: credential and lottery actions remain blocked until that account's
+browser session has been explicitly opened.
 
 CSV columns are `label,email,password` (`label` is optional). Import writes each
 email/password pair to the operating-system Keychain and stores only account

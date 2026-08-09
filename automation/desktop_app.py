@@ -82,6 +82,7 @@ class App(tk.Tk):
         self.minsize(560, 470)
         self.store = AccountStore(APP_DATA_DIR)
         self.accounts: list[Account] = []
+        self.active_account_id: str | None = None
         self.worker = BrowserWorker()
         self._build()
         self._reload_accounts()
@@ -134,6 +135,7 @@ class App(tk.Tk):
         account_frame.columnconfigure(0, weight=1)
         self.account_box = ttk.Combobox(account_frame, state="readonly")
         self.account_box.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        self.account_box.bind("<<ComboboxSelected>>", self._account_selection_changed)
         ttk.Button(account_frame, text="导入 CSV", command=self._import_csv).grid(row=0, column=1)
         ttk.Button(account_frame, text="打开/切换账号登录", command=self._open_login).grid(
             row=1, column=0, sticky="ew", pady=(10, 0), padx=(0, 8)
@@ -209,9 +211,20 @@ class App(tk.Tk):
 
     def _reload_accounts(self) -> None:
         self.accounts = self.store.load()
+        if self.active_account_id not in {item.account_id for item in self.accounts}:
+            self.active_account_id = None
         self.account_box["values"] = [item.label for item in self.accounts]
         if self.accounts and self.account_box.current() < 0:
             self.account_box.current(0)
+
+    def _account_selection_changed(self, _event=None) -> None:
+        account = self._selected_account()
+        if not account:
+            return
+        if account.account_id == self.active_account_id:
+            self.status_var.set(f"当前浏览器会话：{account.label}")
+        else:
+            self.status_var.set(f"已选择 {account.label}；请点击“打开/切换账号登录”。")
 
     def _update_test_mode(self) -> None:
         state = "normal" if self.test_mode_var.get() else "disabled"
@@ -224,6 +237,16 @@ class App(tk.Tk):
             messagebox.showwarning("需要账号", "请先导入并选择一个账号。")
             return None
         return self.accounts[index]
+
+    def _require_active_account(self, account: Account) -> bool:
+        if account.account_id == self.active_account_id:
+            return True
+        messagebox.showwarning(
+            "需要切换会话",
+            f"当前浏览器不是“{account.label}”的会话。\n"
+            "请先点击“打开/切换账号登录”。",
+        )
+        return False
 
     def _import_csv(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("CSV", "*.csv")])
@@ -246,20 +269,20 @@ class App(tk.Tk):
 
     def _fill_credentials(self) -> None:
         account = self._selected_account()
-        if not account:
+        if not account or not self._require_active_account(account):
             return
         try:
             email, password = self.store.credentials_for(account)
         except Exception as exc:
             messagebox.showerror("无法读取密码", str(exc))
             return
-        self._send("fill_credentials", email, password)
+        self._send("fill_credentials", account.account_id, email, password)
 
     def _attempt_login(self) -> None:
         if not self.test_mode_var.get():
             return
         account = self._selected_account()
-        if not account:
+        if not account or not self._require_active_account(account):
             return
         if not messagebox.askokcancel(
             "测试登录",
@@ -272,9 +295,12 @@ class App(tk.Tk):
         except Exception as exc:
             messagebox.showerror("无法读取密码", str(exc))
             return
-        self._send("attempt_login", identifier, password)
+        self._send("attempt_login", account.account_id, identifier, password)
 
     def _prepare(self) -> None:
+        account = self._selected_account()
+        if not account or not self._require_active_account(account):
+            return
         target = self.url_var.get().strip()
         if not target:
             messagebox.showwarning("需要 URL", "请输入具体的抽选申请 URL。")
@@ -286,9 +312,12 @@ class App(tk.Tk):
         )
         if not confirmed:
             return
-        self._send("prepare_target", target)
+        self._send("prepare_target", account.account_id, target)
 
     def _prepare_frame(self, frame_name: str) -> None:
+        account = self._selected_account()
+        if not account or not self._require_active_account(account):
+            return
         event_url = self.url_var.get().strip()
         if not event_url:
             messagebox.showwarning("需要 URL", "请输入具体的公演页面 URL。")
@@ -301,7 +330,7 @@ class App(tk.Tk):
         )
         if not confirmed:
             return
-        self._send("prepare_event_frame", event_url, frame_name)
+        self._send("prepare_event_frame", account.account_id, event_url, frame_name)
 
     def _send(self, name: str, *args) -> None:
         labels = {
@@ -325,8 +354,24 @@ class App(tk.Tk):
 
     def _show_worker_result(self, ok: bool, name: str, detail: str) -> None:
         if not ok:
+            if name in {"open_login", "close"}:
+                self.active_account_id = None
             self.status_var.set(f"失败：{detail}")
             messagebox.showerror("操作失败", detail)
+            return
+        if name == "open_login":
+            self.active_account_id = detail
+            label = next(
+                (item.label for item in self.accounts if item.account_id == detail),
+                "所选账号",
+            )
+            self.status_var.set(
+                f"当前浏览器会话：{label}。请手动完成登录和 Cloudflare 验证。"
+            )
+            return
+        if name == "close":
+            self.active_account_id = None
+            self.status_var.set("浏览器已关闭。")
             return
         if name == "attempt_login":
             messages = {
@@ -345,10 +390,8 @@ class App(tk.Tk):
             self.status_var.set(messages.get(detail, "会员枠页面已打开，请检查浏览器。"))
             return
         messages = {
-            "open_login": "登录页面已打开。请手动完成登录和 Cloudflare 验证。",
             "fill_credentials": "账号密码已填入；请手动完成验证并点击登录。",
             "prepare_target": "三个指定选项已勾选；程序没有点击抽选提交。",
-            "close": "浏览器已关闭。",
         }
         self.status_var.set(messages.get(name, "完成"))
 

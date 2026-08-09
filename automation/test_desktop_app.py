@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from account_store import Account
 from desktop_app import App, is_dark_theme
 
 
@@ -50,7 +51,21 @@ class StateRecorder:
         self.states.append(state)
 
 
+class TextRecorder:
+    def __init__(self) -> None:
+        self.value = ""
+
+    def set(self, value: str) -> None:
+        self.value = value
+
+
 class DesktopAppTests(unittest.TestCase):
+    def _active_account_methods(self, account: Account) -> dict:
+        return {
+            "_selected_account": lambda _self: account,
+            "_require_active_account": lambda _self, _account: True,
+        }
+
     def test_uses_native_macos_dark_mode_signal(self) -> None:
         self.assertTrue(is_dark_theme(FakeWindow(1), object()))
         self.assertFalse(is_dark_theme(FakeWindow(0), object()))
@@ -73,6 +88,7 @@ class DesktopAppTests(unittest.TestCase):
             {
                 "url_var": StringValue("https://akb48.zaiko.io/apply/example"),
                 "_send": lambda _self, *args: sent.append(args),
+                **self._active_account_methods(Account("one", "测试")),
             },
         )()
 
@@ -90,12 +106,13 @@ class DesktopAppTests(unittest.TestCase):
             {
                 "url_var": StringValue(target),
                 "_send": lambda _self, *args: sent.append(args),
+                **self._active_account_methods(Account("one", "测试")),
             },
         )()
 
         App._prepare(app)
 
-        self.assertEqual(sent, [("prepare_target", target)])
+        self.assertEqual(sent, [("prepare_target", "one", target)])
 
     @patch("desktop_app.messagebox.askokcancel", return_value=True)
     def test_confirmed_event_frame_uses_exact_name(self, _askokcancel) -> None:
@@ -107,6 +124,7 @@ class DesktopAppTests(unittest.TestCase):
             {
                 "url_var": StringValue(event_url),
                 "_send": lambda _self, *args: sent.append(args),
+                **self._active_account_methods(Account("one", "测试")),
             },
         )()
 
@@ -114,7 +132,7 @@ class DesktopAppTests(unittest.TestCase):
 
         self.assertEqual(
             sent,
-            [("prepare_event_frame", event_url, "柱の会 会員枠")],
+            [("prepare_event_frame", "one", event_url, "柱の会 会員枠")],
         )
 
     def test_test_mode_controls_credential_button_state(self) -> None:
@@ -136,6 +154,46 @@ class DesktopAppTests(unittest.TestCase):
 
         self.assertEqual(fill_button.states, ["normal", "disabled"])
         self.assertEqual(login_button.states, ["normal", "disabled"])
+
+    @patch("desktop_app.messagebox.showwarning")
+    def test_rejects_actions_for_non_active_account(self, showwarning) -> None:
+        account = Account("two", "账号 B")
+        app = type("FakeApp", (), {"active_account_id": "one"})()
+
+        self.assertFalse(App._require_active_account(app, account))
+
+        showwarning.assert_called_once()
+        self.assertIn("账号 B", showwarning.call_args.args[1])
+
+    def test_open_result_records_active_account(self) -> None:
+        status = TextRecorder()
+        app = type(
+            "FakeApp",
+            (),
+            {
+                "active_account_id": None,
+                "accounts": [Account("one", "账号 A")],
+                "status_var": status,
+            },
+        )()
+
+        App._show_worker_result(app, True, "open_login", "one")
+
+        self.assertEqual(app.active_account_id, "one")
+        self.assertIn("账号 A", status.value)
+
+    def test_close_result_clears_active_account(self) -> None:
+        status = TextRecorder()
+        app = type(
+            "FakeApp",
+            (),
+            {"active_account_id": "one", "status_var": status},
+        )()
+
+        App._show_worker_result(app, True, "close", "")
+
+        self.assertIsNone(app.active_account_id)
+        self.assertEqual(status.value, "浏览器已关闭。")
 
 
 if __name__ == "__main__":

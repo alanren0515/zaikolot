@@ -135,8 +135,10 @@ class BrowserSessionTests(unittest.TestCase):
     def test_event_frame_reports_login_required(self, _find_url) -> None:
         session = BrowserSession()
         session.page = FakePage()
+        session._profile_dir = Path("/profiles/one")
 
         result = session.prepare_event_frame(
+            "one",
             "https://akb48.zaiko.io/ja/e/example",
             "映像倉庫会員枠",
             timeout_ms=500,
@@ -151,17 +153,26 @@ class BrowserSessionTests(unittest.TestCase):
             ],
         )
 
+    def test_rejects_queued_action_after_profile_switch(self) -> None:
+        session = BrowserSession()
+        session.page = FakePage()
+        session._profile_dir = Path("/profiles/two")
+
+        with self.assertRaisesRegex(RuntimeError, "会话已变化"):
+            session.fill_credentials("one", "me@example.com", "secret")
+
     def test_same_profile_reuses_context(self) -> None:
         with TemporaryDirectory() as directory:
             factory = PlaywrightFactory()
             session = BrowserSession(factory)
             profile = Path(directory) / "one"
 
-            session.open_login(profile)
+            opened_profile = session.open_login(profile)
             first_context = factory.instances[0].chromium.contexts[0]
             session.open_login(profile)
 
             self.assertEqual(len(factory.instances), 1)
+            self.assertEqual(opened_profile, "one")
             self.assertEqual(first_context.close_count, 0)
             self.assertEqual(len(first_context.pages[0].goto_urls), 2)
             session.close()
