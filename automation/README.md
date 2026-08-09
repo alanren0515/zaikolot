@@ -4,8 +4,8 @@ This prototype provides a lightweight Tkinter UI backed by one visible Playwrigh
 Chromium session. Each account gets a separate persistent browser profile.
 
 CSV columns are `label,email,password` (`label` is optional). Import writes each
-password to the operating-system Keychain and stores only account labels, email
-addresses, and opaque account IDs in local application data. The CSV is never
+email/password pair to the operating-system Keychain and stores only account
+labels and opaque account IDs in local application data. The CSV is never
 copied into the repository. For best security, delete or encrypt the plaintext
 CSV after confirming the Keychain import.
 

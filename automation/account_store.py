@@ -38,7 +38,6 @@ class KeyringSecretStore:
 class Account:
     account_id: str
     label: str
-    email: str
 
 
 def _first(row: dict[str, str], names: tuple[str, ...]) -> str:
@@ -61,7 +60,7 @@ class AccountStore:
         if not self.metadata_path.exists():
             return []
         data = json.loads(self.metadata_path.read_text(encoding="utf-8"))
-        return [Account(**item) for item in data]
+        return [Account(account_id=item["account_id"], label=item["label"]) for item in data]
 
     def import_csv(self, csv_path: Path) -> list[Account]:
         with csv_path.open(newline="", encoding="utf-8-sig") as handle:
@@ -79,15 +78,18 @@ class AccountStore:
             account_id = _account_id(email)
             account = Account(
                 account_id=account_id,
-                label=_first(row, LABEL_FIELDS) or email,
-                email=email,
+                label=_first(row, LABEL_FIELDS) or f"账号 {number - 1}",
             )
-            parsed_rows.append((account, password))
+            credentials = json.dumps(
+                {"email": email, "password": password},
+                ensure_ascii=False,
+            )
+            parsed_rows.append((account, credentials))
 
         accounts: dict[str, Account] = {item.account_id: item for item in self.load()}
         imported: list[Account] = []
-        for account, password in parsed_rows:
-            self.secrets.set(account.account_id, password)
+        for account, credentials in parsed_rows:
+            self.secrets.set(account.account_id, credentials)
             accounts[account.account_id] = account
             imported.append(account)
 
@@ -98,11 +100,19 @@ class AccountStore:
         )
         return imported
 
-    def password_for(self, account: Account) -> str:
-        password = self.secrets.get(account.account_id)
-        if password is None:
-            raise RuntimeError(f"Keychain 中没有 {account.label} 的密码")
-        return password
+    def credentials_for(self, account: Account) -> tuple[str, str]:
+        payload = self.secrets.get(account.account_id)
+        if payload is None:
+            raise RuntimeError(f"Keychain 中没有 {account.label} 的凭据")
+        try:
+            data = json.loads(payload)
+            email = data["email"]
+            password = data["password"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            raise RuntimeError(f"{account.label} 使用旧凭据格式，请重新导入 CSV") from None
+        if not isinstance(email, str) or not email or not isinstance(password, str) or not password:
+            raise RuntimeError(f"Keychain 中的 {account.label} 凭据无效")
+        return email, password
 
     def profile_dir(self, account: Account) -> Path:
         return self.profiles_dir / account.account_id

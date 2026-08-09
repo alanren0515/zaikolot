@@ -164,7 +164,7 @@ class App(tk.Tk):
 
     def _reload_accounts(self) -> None:
         self.accounts = self.store.load()
-        self.account_box["values"] = [f"{item.label}  ({item.email})" for item in self.accounts]
+        self.account_box["values"] = [item.label for item in self.accounts]
         if self.accounts and self.account_box.current() < 0:
             self.account_box.current(0)
 
@@ -202,11 +202,11 @@ class App(tk.Tk):
         if not account:
             return
         try:
-            password = self.store.password_for(account)
+            email, password = self.store.credentials_for(account)
         except Exception as exc:
             messagebox.showerror("无法读取密码", str(exc))
             return
-        self._send("fill_credentials", account.email, password)
+        self._send("fill_credentials", email, password)
 
     def _prepare(self) -> None:
         target = self.url_var.get().strip()
