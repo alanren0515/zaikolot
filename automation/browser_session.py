@@ -38,9 +38,11 @@ def fill_login_fields(page, email: str, password: str) -> tuple[str, str]:
 
 
 class BrowserSession:
-    def __init__(self) -> None:
+    def __init__(self, playwright_factory=None) -> None:
+        self._playwright_factory = playwright_factory
         self._playwright = None
         self._context = None
+        self._profile_dir: Path | None = None
         self.page = None
 
     @property
@@ -48,16 +50,29 @@ class BrowserSession:
         return self._context is not None
 
     def open_login(self, profile_dir: Path) -> None:
+        profile_dir = profile_dir.expanduser().resolve()
+        if self.is_open and profile_dir == self._profile_dir:
+            self.page.goto(LOGIN_URL, wait_until="domcontentloaded")
+            return
         if self.is_open:
             self.close()
-        from playwright.sync_api import sync_playwright
 
         profile_dir.mkdir(parents=True, exist_ok=True)
-        self._playwright = sync_playwright().start()
-        self._context = self._playwright.chromium.launch_persistent_context(
-            user_data_dir=str(profile_dir),
-            headless=False,
-        )
+        if self._playwright_factory is None:
+            from playwright.sync_api import sync_playwright
+
+            self._playwright = sync_playwright().start()
+        else:
+            self._playwright = self._playwright_factory()
+        try:
+            self._context = self._playwright.chromium.launch_persistent_context(
+                user_data_dir=str(profile_dir),
+                headless=False,
+            )
+        except Exception:
+            self.close()
+            raise
+        self._profile_dir = profile_dir
         self.page = self._context.pages[0] if self._context.pages else self._context.new_page()
         self.page.goto(LOGIN_URL, wait_until="domcontentloaded")
 
@@ -79,6 +94,7 @@ class BrowserSession:
                 self._context.close()
         finally:
             self._context = None
+            self._profile_dir = None
             self.page = None
             if self._playwright:
                 self._playwright.stop()
