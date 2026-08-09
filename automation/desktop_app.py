@@ -68,31 +68,43 @@ class App(tk.Tk):
         is_dark = is_dark_theme(self, style)
         primary = "#f2f2f2" if is_dark else "#202020"
         secondary = "#c7c7c7" if is_dark else "#555555"
-        style.configure("Title.TLabel", foreground=primary)
-        style.configure("Muted.TLabel", foreground=secondary)
-        style.configure("TLabelframe.Label", foreground=primary)
+        surface = "#1c1c1e" if is_dark else "#f2f2f2"
+        border = "#444446" if is_dark else "#c8c8c8"
 
-        root = ttk.Frame(self, padding=24)
+        root = tk.Frame(self, padx=24, pady=24, background=surface)
         root.pack(fill="both", expand=True)
         root.columnconfigure(0, weight=1)
 
-        ttk.Label(
+        tk.Label(
             root,
             text="Zaiko Lottery Assistant",
             font=("TkDefaultFont", 18, "bold"),
-            style="Title.TLabel",
+            foreground=primary,
+            background=surface,
         ).grid(
             row=0, column=0, sticky="w"
         )
-        ttk.Label(
+        tk.Label(
             root,
             text="登录与验证由你完成；程序只准备指定的三个选项。",
-            style="Muted.TLabel",
+            foreground=secondary,
+            background=surface,
         ).grid(
             row=1, column=0, sticky="w", pady=(4, 20)
         )
 
-        account_frame = ttk.LabelFrame(root, text="账号会话", padding=12)
+        account_frame = tk.LabelFrame(
+            root,
+            text="账号会话",
+            padx=12,
+            pady=12,
+            foreground=primary,
+            background=surface,
+            highlightbackground=border,
+            highlightcolor=border,
+            highlightthickness=1,
+            borderwidth=0,
+        )
         account_frame.grid(row=2, column=0, sticky="ew")
         account_frame.columnconfigure(0, weight=1)
         self.account_box = ttk.Combobox(account_frame, state="readonly")
@@ -105,18 +117,35 @@ class App(tk.Tk):
             row=1, column=1, sticky="ew", pady=(10, 0)
         )
 
-        target_frame = ttk.LabelFrame(root, text="抽选页面", padding=12)
+        target_frame = tk.LabelFrame(
+            root,
+            text="抽选页面",
+            padx=12,
+            pady=12,
+            foreground=primary,
+            background=surface,
+            highlightbackground=border,
+            highlightcolor=border,
+            highlightthickness=1,
+            borderwidth=0,
+        )
         target_frame.grid(row=3, column=0, sticky="ew", pady=16)
         target_frame.columnconfigure(0, weight=1)
         self.url_var = tk.StringVar()
         ttk.Entry(target_frame, textvariable=self.url_var).grid(row=0, column=0, sticky="ew", padx=(0, 8))
         ttk.Button(target_frame, text="打开并勾选", command=self._prepare).grid(row=0, column=1)
 
-        controls = ttk.Frame(root)
+        controls = tk.Frame(root, background=surface)
         controls.grid(row=4, column=0, sticky="ew")
         ttk.Button(controls, text="关闭浏览器", command=lambda: self._send("close")).pack(side="right")
         self.status_var = tk.StringVar(value="就绪")
-        ttk.Label(root, textvariable=self.status_var, wraplength=560, style="Muted.TLabel").grid(
+        tk.Label(
+            root,
+            textvariable=self.status_var,
+            wraplength=560,
+            foreground=secondary,
+            background=surface,
+        ).grid(
             row=5, column=0, sticky="w", pady=(22, 0)
         )
 
