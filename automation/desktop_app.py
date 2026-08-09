@@ -110,12 +110,25 @@ class App(tk.Tk):
         self.account_box = ttk.Combobox(account_frame, state="readonly")
         self.account_box.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         ttk.Button(account_frame, text="导入 CSV", command=self._import_csv).grid(row=0, column=1)
-        ttk.Button(account_frame, text="打开登录页", command=self._open_login).grid(
+        ttk.Button(account_frame, text="打开/切换账号登录", command=self._open_login).grid(
             row=1, column=0, sticky="ew", pady=(10, 0), padx=(0, 8)
         )
-        ttk.Button(account_frame, text="测试：仅填入账号密码", command=self._fill_credentials).grid(
+        self.fill_button = ttk.Button(
+            account_frame,
+            text="仅填入账号密码",
+            command=self._fill_credentials,
+            state="disabled",
+        )
+        self.fill_button.grid(
             row=1, column=1, sticky="ew", pady=(10, 0)
         )
+        self.test_mode_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            account_frame,
+            text="测试模式：允许填入凭据",
+            variable=self.test_mode_var,
+            command=self._update_test_mode,
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
         target_frame = tk.LabelFrame(
             root,
@@ -154,6 +167,9 @@ class App(tk.Tk):
         self.account_box["values"] = [f"{item.label}  ({item.email})" for item in self.accounts]
         if self.accounts and self.account_box.current() < 0:
             self.account_box.current(0)
+
+    def _update_test_mode(self) -> None:
+        self.fill_button.configure(state="normal" if self.test_mode_var.get() else "disabled")
 
     def _selected_account(self) -> Account | None:
         index = self.account_box.current()
@@ -196,6 +212,13 @@ class App(tk.Tk):
         target = self.url_var.get().strip()
         if not target:
             messagebox.showwarning("需要 URL", "请输入具体的抽选申请 URL。")
+            return
+        confirmed = messagebox.askokcancel(
+            "确认勾选",
+            "程序将勾选“当选后以其他方式支付”以及两项使用条款同意框。\n\n"
+            "不会点击最终抽选提交。是否继续？",
+        )
+        if not confirmed:
             return
         self._send("prepare_target", target)
 

@@ -11,8 +11,10 @@ CSV after confirming the Keychain import.
 
 The program does not click login, interact with Cloudflare/CAPTCHA/OTP, run
 headless, use stealth plugins, touch registered-card controls, or submit an
-application. The test-only credential button fills the two login fields and then
-stops for manual verification and login.
+application. Credential filling is disabled by default; enabling test mode lets
+the credential button fill the two login fields and then stop for manual
+verification and login. Preparing a target requires an explicit confirmation
+before the two terms-agreement checkboxes are selected.
 
 ## Workflow
 
