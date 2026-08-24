@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Zaiko Lottery Helper",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "minimum_chrome_version": "114",
   "description": "在 Zaiko 抽选页面自动勾选 checkbox 并完成确认流程",
   "permissions": [
@@ -17,7 +17,7 @@
     }
   },
   "side_panel": {
-    "default_path": "popup.html"
+    "default_path": "sidepanel.html"
   },
   "icons": {
     "16": "icons/icon-off-16.png",
