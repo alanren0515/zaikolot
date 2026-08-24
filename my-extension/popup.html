@@ -1,85 +1,95 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Zaiko Lottery Helper</title>
   <style>
-    * {
-      box-sizing: border-box;
+    * { box-sizing: border-box; }
+
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     }
 
     body {
-      width: 288px;
+      min-width: 280px;
       margin: 0;
-      padding: 0;
       color: #172033;
       background: #f5f7fb;
-      font-family: Arial, sans-serif;
     }
 
+    button, textarea, input { font: inherit; }
+
     .panel {
-      padding: 18px;
-      background: linear-gradient(180deg, #ffffff 0%, #f7f9fd 100%);
+      width: min(100%, 520px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px 16px 28px;
     }
 
     .top {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
+      gap: 11px;
+      margin-bottom: 20px;
     }
 
     .mark {
       display: grid;
-      width: 34px;
-      height: 34px;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
       place-items: center;
       border-radius: 8px;
       color: #ffffff;
       background: #1769e0;
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 17px;
+      font-weight: 750;
     }
 
     .title {
       margin: 0;
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.2;
+      font-size: 17px;
+      line-height: 1.25;
     }
 
     .subtitle {
       margin-top: 3px;
       color: #677083;
       font-size: 12px;
-      line-height: 1.3;
+      line-height: 1.4;
     }
 
-    .control {
-      padding: 14px;
-      border: 1px solid #e1e6f0;
+    .section {
+      padding: 16px;
+      border: 1px solid #dde3ed;
       border-radius: 8px;
       background: #ffffff;
     }
+
+    .section + .section { margin-top: 14px; }
 
     .row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 14px;
     }
 
-    .label {
-      font-weight: 700;
+    .label, .section-title {
       font-size: 14px;
+      font-weight: 700;
       line-height: 1.4;
     }
+
+    .section-title { margin: 0; }
 
     .hint {
-      margin-top: 4px;
+      margin: 4px 0 0;
       color: #697386;
       font-size: 12px;
-      line-height: 1.4;
+      line-height: 1.5;
     }
 
     .status {
@@ -116,9 +126,9 @@
     .switch {
       position: relative;
       display: inline-block;
-      flex: 0 0 auto;
       width: 48px;
       height: 28px;
+      flex: 0 0 auto;
     }
 
     .switch input {
@@ -143,7 +153,7 @@
       width: 20px;
       height: 20px;
       border-radius: 50%;
-      background-color: white;
+      background-color: #ffffff;
       box-shadow: 0 2px 5px rgba(23, 32, 51, 0.25);
       content: "";
       transition: transform 0.2s;
@@ -154,31 +164,93 @@
       box-shadow: 0 0 0 3px rgba(23, 105, 224, 0.14);
     }
 
-    input:checked + .slider::before {
-      transform: translateX(20px);
-    }
+    input:checked + .slider::before { transform: translateX(20px); }
 
-    input:focus-visible + .slider {
+    input:focus-visible + .slider,
+    textarea:focus-visible,
+    button:focus-visible {
       outline: 2px solid #1769e0;
       outline-offset: 2px;
     }
+
+    .url-input {
+      width: 100%;
+      min-height: 176px;
+      margin-top: 12px;
+      padding: 11px 12px;
+      resize: vertical;
+      border: 1px solid #cfd6e3;
+      border-radius: 6px;
+      color: #172033;
+      background: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .url-input::placeholder { color: #929bad; }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .start-button {
+      min-height: 40px;
+      flex: 1 1 auto;
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 6px;
+      color: #ffffff;
+      background: #1769e0;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .start-button:hover:not(:disabled) { background: #0f5cc9; }
+
+    .start-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .interval {
+      flex: 0 0 auto;
+      color: #697386;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .queue-status {
+      min-height: 20px;
+      margin: 10px 0 0;
+      color: #697386;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .queue-status.error { color: #b42318; }
+    .queue-status.success { color: #0f766e; }
   </style>
 </head>
 <body>
-  <div class="panel">
-    <div class="top">
-      <div class="mark">Z</div>
+  <main class="panel">
+    <header class="top">
+      <div class="mark" aria-hidden="true">Z</div>
       <div>
         <h1 class="title">Zaiko Helper</h1>
-        <div class="subtitle">抽选页面自动操作</div>
+        <div class="subtitle">抽选页面操作与链接队列</div>
       </div>
-    </div>
+    </header>
 
-    <div class="control">
+    <section class="section" aria-labelledby="automationTitle">
       <div class="row">
         <div>
-          <div class="label">自动执行</div>
-          <div class="hint">开启后，匹配页面加载时运行</div>
+          <div id="automationTitle" class="label">自动执行</div>
+          <p class="hint">开启后，匹配页面加载时运行</p>
         </div>
         <label class="switch" aria-label="切换自动执行">
           <input id="enabledToggle" type="checkbox">
@@ -186,8 +258,25 @@
         </label>
       </div>
       <div id="status" class="status inactive">读取中</div>
-    </div>
-  </div>
-  <script src="popup.js"></script>
+    </section>
+
+    <section class="section" aria-labelledby="urlQueueTitle">
+      <h2 id="urlQueueTitle" class="section-title">依次打开公演链接</h2>
+      <p class="hint">每行输入一个完整 URL。链接会在后台标签页中依次打开。</p>
+      <textarea
+        id="urlInput"
+        class="url-input"
+        aria-describedby="queueStatus"
+        spellcheck="false"
+        placeholder="https://akb48.zaiko.io/ja/e/example-1&#10;https://akb48.zaiko.io/ja/e/example-2"
+      ></textarea>
+      <div class="actions">
+        <button id="startButton" class="start-button" type="button">开始打开以下 URL</button>
+        <span class="interval">间隔 5 秒</span>
+      </div>
+      <p id="queueStatus" class="queue-status" role="status" aria-live="polite">尚未开始</p>
+    </section>
+  </main>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

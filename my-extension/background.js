@@ -25,8 +25,22 @@ function syncIcon() {
   });
 }
 
-chrome.runtime.onInstalled.addListener(syncIcon);
-chrome.runtime.onStartup.addListener(syncIcon);
+function configureSidePanel() {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+    .catch((error) => console.error('[Zaiko Lottery Helper] Side Panel setup failed:', error));
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  configureSidePanel();
+  syncIcon();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  configureSidePanel();
+  syncIcon();
+});
+
+configureSidePanel();
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local' || !changes.enabled) {
