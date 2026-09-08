@@ -11,9 +11,9 @@ from typing import Protocol
 
 
 SERVICE_NAME = "Zaiko Lottery Assistant"
-EMAIL_FIELDS = ("email", "account", "username")
-PASSWORD_FIELDS = ("password", "pass")
-LABEL_FIELDS = ("label", "name")
+EMAIL_FIELDS = ("email", "account", "username", "账号")
+PASSWORD_FIELDS = ("password", "pass", "密码")
+LABEL_FIELDS = ("label", "name", "no", "序号")
 
 
 class SecretStore(Protocol):
@@ -76,9 +76,10 @@ class AccountStore:
             if not email or not password:
                 raise ValueError(f"CSV 第 {number} 行缺少 email/account 或 password")
             account_id = _account_id(email)
+            label = _first(row, LABEL_FIELDS)
             account = Account(
                 account_id=account_id,
-                label=_first(row, LABEL_FIELDS) or f"账号 {number - 1}",
+                label=f"账号 {label}" if label.isdigit() else label or f"账号 {number - 1}",
             )
             credentials = json.dumps(
                 {"email": email, "password": password},
@@ -90,6 +91,7 @@ class AccountStore:
         imported: list[Account] = []
         for account, credentials in parsed_rows:
             self.secrets.set(account.account_id, credentials)
+            accounts.pop(account.account_id, None)
             accounts[account.account_id] = account
             imported.append(account)
 

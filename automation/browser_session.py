@@ -97,8 +97,9 @@ def submit_login(page, email: str, password: str, timeout_ms: int = 15_000) -> s
 
 
 class BrowserSession:
-    def __init__(self, playwright_factory=None) -> None:
+    def __init__(self, playwright_factory=None, browser_channel: str | None = "chrome") -> None:
         self._playwright_factory = playwright_factory
+        self._browser_channel = browser_channel
         self._playwright = None
         self._context = None
         self._profile_dir: Path | None = None
@@ -132,9 +133,14 @@ class BrowserSession:
         else:
             self._playwright = self._playwright_factory()
         try:
+            launch_options = {
+                "user_data_dir": str(profile_dir),
+                "headless": False,
+            }
+            if self._browser_channel:
+                launch_options["channel"] = self._browser_channel
             self._context = self._playwright.chromium.launch_persistent_context(
-                user_data_dir=str(profile_dir),
-                headless=False,
+                **launch_options
             )
         except Exception:
             self.close()

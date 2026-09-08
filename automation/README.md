@@ -1,14 +1,16 @@
 # Zaiko Lottery Assistant desktop prototype
 
-This prototype provides a lightweight Tkinter UI backed by one visible Playwright
-Chromium session. Each account gets a separate persistent browser profile.
+This prototype provides a lightweight Tkinter UI backed by one visible
+Playwright session using the locally installed stable Google Chrome channel.
+Each account gets a separate persistent browser profile.
 Selecting a different account in the UI does not silently reuse the old
 profile: credential and lottery actions remain blocked until that account's
 browser session has been explicitly opened.
 Only one browser command can run at a time, and closing the desktop app waits
 briefly for the active Playwright context to release its Chromium processes.
 
-CSV columns are `label,email,password` (`label` is optional). Import writes each
+CSV columns may be `label,email,password` (`label` is optional) or the Chinese
+form `No,账号,密码`. Import writes each
 email/password pair to the operating-system Keychain and stores only account
 labels and opaque account IDs in local application data. The CSV is never
 copied into the repository. For best security, delete or encrypt the plaintext
@@ -52,6 +54,9 @@ system Tk 8.5:
 ```bash
 brew install python@3.14 python-tk@3.14
 ```
+
+Google Chrome stable must also be installed in `/Applications`. The app does
+not use stealth plugins or a headless browser for live ZAIKO sessions.
 
 ```bash
 python3 -m venv .venv

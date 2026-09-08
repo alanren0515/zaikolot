@@ -91,6 +91,46 @@ class AccountStoreTests(unittest.TestCase):
 
             self.assertNotEqual(store.profile_dir(accounts[0]), store.profile_dir(accounts[1]))
 
+    def test_imports_chinese_headers_and_numeric_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "accounts.csv"
+            source.write_text(
+                "No,账号,密码\n1,first@example.com,one\n2,second@example.com,two\n",
+                encoding="utf-8",
+            )
+            store = AccountStore(root / "data", MemorySecrets())
+
+            accounts = store.import_csv(source)
+
+            self.assertEqual([item.label for item in accounts], ["账号 1", "账号 2"])
+            self.assertEqual(
+                store.credentials_for(accounts[1]),
+                ("second@example.com", "two"),
+            )
+
+    def test_reimport_uses_current_csv_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "accounts.csv"
+            source.write_text(
+                "No,账号,密码\n2,second@example.com,two\n",
+                encoding="utf-8",
+            )
+            store = AccountStore(root / "data", MemorySecrets())
+            store.import_csv(source)
+            source.write_text(
+                "No,账号,密码\n1,first@example.com,one\n2,second@example.com,two\n",
+                encoding="utf-8",
+            )
+
+            store.import_csv(source)
+
+            self.assertEqual(
+                [item.label for item in store.load()],
+                ["账号 1", "账号 2"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

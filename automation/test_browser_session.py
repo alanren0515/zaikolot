@@ -72,9 +72,13 @@ class FakeChromium:
     def __init__(self) -> None:
         self.contexts: list[FakeContext] = []
         self.profile_dirs: list[str] = []
+        self.channels: list[str | None] = []
 
-    def launch_persistent_context(self, *, user_data_dir: str, headless: bool) -> FakeContext:
+    def launch_persistent_context(
+        self, *, user_data_dir: str, headless: bool, channel: str | None = None
+    ) -> FakeContext:
         self.profile_dirs.append(user_data_dir)
+        self.channels.append(channel)
         context = FakeContext()
         self.contexts.append(context)
         return context
@@ -173,6 +177,7 @@ class BrowserSessionTests(unittest.TestCase):
 
             self.assertEqual(len(factory.instances), 1)
             self.assertEqual(opened_profile, "one")
+            self.assertEqual(factory.instances[0].chromium.channels, ["chrome"])
             self.assertEqual(first_context.close_count, 0)
             self.assertEqual(len(first_context.pages[0].goto_urls), 2)
             session.close()
